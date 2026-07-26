@@ -242,41 +242,39 @@ def get_all_global_profiles():
     return df
 
 # ---------------------------------------------------------
-# FUNÇÃO DA IA (GEMINI) - COM MULTI-MODEL FALLBACK
+# FUNÇÃO DA IA (GEMINI) - RETORNA O ERRO DETALHADO EM CASO DE FALHA
 # ---------------------------------------------------------
 def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age):
-    client = genai.Client(api_key=api_key)
-    
-    prompt = f"""
-    Você é um especialista em Análise do Comportamento Aplicada (ABA), Terapia Ocupacional e desenvolvimento infantil no Transtorno do Espectro Autista (TEA).
+    if not api_key:
+        return "Erro: Nenhuma API Key do Gemini foi configurada nos secrets do Streamlit."
 
-    Uma pessoa autista ({profile_name}, {age} anos) costuma repetir frequentemente a seguinte frase/ecolalia:
-    - Frase repetida: "{phrase}"
-    - Mídia de origem informada (desenho, jogo, filme, vídeo do YouTube): "{media_title}"
+    try:
+        client = genai.Client(api_key=api_key)
+        
+        prompt = f"""
+        Você é um especialista em Análise do Comportamento Aplicada (ABA), Terapia Ocupacional e desenvolvimento infantil no Transtorno do Espectro Autista (TEA).
 
-    Sua tarefa é analisar o contexto desta frase na mídia citada (ou o significado geral se for uma variação) e responder de forma acolhedora, objetiva e prática para os pais/cuidadores:
+        Uma pessoa autista ({profile_name}, {age} anos) costuma repetir frequentemente a seguinte frase/ecolalia:
+        - Frase repetida: "{phrase}"
+        - Mídia de origem informada (desenho, jogo, filme, vídeo do YouTube): "{media_title}"
 
-    1. **Contexto Original:** De onde vem essa frase na mídia/desenho e o que acontecia na cena original?
-    2. **Intenção Comunicativa / Significado Provável:** O que a pessoa pode estar querendo expressar ao usar essa fala no dia a dia? (Ex: expressar animação, pedir algo, demonstrar desconforto sensorial, buscar previsibilidade, etc.)
-    3. **Como Responder / Ação Sugerida:** Uma orientação prática e acolhedora de como os pais ou terapeutas podem validar essa fala e responder de forma funcional.
+        Sua tarefa é analisar o contexto desta frase na mídia citada (ou o significado geral se for uma variação) e responder de forma acolhedora, objetiva e prática para os pais/cuidadores:
 
-    Responda em português, usando tópicos claros e linguagem acessível para famílias.
-    """
-    
-    # Lista de modelos suportados pela API para testar em sequência
-    models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp']
-    
-    for model_name in models_to_try:
-        try:
-            response = client.models.generate_content(
-                model=model_name,
-                contents=prompt,
-            )
-            return response.text
-        except Exception:
-            continue
-            
-    return "Erro ao consultar a IA: Nenhum modelo disponível respondeu com a chave fornecida."
+        1. **Contexto Original:** De onde vem essa frase na mídia/desenho e o que acontecia na cena original?
+        2. **Intenção Comunicativa / Significado Provável:** O que a pessoa pode estar querendo expressar ao usar essa fala no dia a dia? (Ex: expressar animação, pedir algo, demonstrar desconforto sensorial, buscar previsibilidade, etc.)
+        3. **Como Responder / Ação Sugerida:** Uma orientação prática e acolhedora de como os pais ou terapeutas podem validar essa fala e responder de forma funcional.
+
+        Responda em português, usando tópicos claros e linguagem acessível para famílias.
+        """
+        
+        response = client.models.generate_content(
+            model="gemini-1.5-flash",
+            contents=prompt,
+        )
+        return response.text
+
+    except Exception as e:
+        return f"Erro na API do Gemini: {str(e)}"
 
 # ---------------------------------------------------------
 # PERSISTÊNCIA DE SESSÃO / COOKIES & CHAVE DE API
@@ -479,9 +477,7 @@ elif selected_page == "🗣️ Biblioteca de Ecolalias (com IA)":
             ai_analysis_result = ""
             if st.button("✨ Analisar e Traduzir com Inteligência Artificial", type="primary"):
                 active_key = st.session_state.gemini_api_key
-                if not active_key:
-                    st.error("Chave de IA indisponível no momento. Entre em contato com o suporte.")
-                elif not phrase.strip():
+                if not phrase.strip():
                     st.warning("Digite a frase para ser analisada.")
                 else:
                     with st.spinner("Analisando o contexto com a IA do Gemini..."):
