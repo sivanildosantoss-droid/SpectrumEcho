@@ -222,7 +222,7 @@ def get_all_global_profiles():
     return df
 
 # ---------------------------------------------------------
-# FUNÇÃO DA IA (GEMINI) - CORRIGIDA
+# FUNÇÃO DA IA (GEMINI)
 # ---------------------------------------------------------
 def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age):
     try:
@@ -253,11 +253,26 @@ def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age)
         return f"Erro ao consultar a IA: {str(e)}"
 
 # ---------------------------------------------------------
+# PERSISTÊNCIA DE SESSÃO / COOKIES
+# ---------------------------------------------------------
+# Recuperação automática das credenciais
+if "user_email" not in st.session_state:
+    st.session_state.user_email = st.query_params.get("user_email", None)
+
+# BUSCA A API KEY DOS SECRETS DO STREAMLIT DE FORMA GARANTIDA
+env_gemini_key = ""
+try:
+    if "GEMINI_API_KEY" in st.secrets:
+        env_gemini_key = st.secrets["GEMINI_API_KEY"]
+except Exception:
+    pass
+
+if "gemini_api_key" not in st.session_state or not st.session_state.gemini_api_key:
+    st.session_state.gemini_api_key = env_gemini_key
+
+# ---------------------------------------------------------
 # AUTENTICAÇÃO / TELA INICIAL (LANDING PAGE)
 # ---------------------------------------------------------
-if "user_email" not in st.session_state:
-    st.session_state.user_email = None
-
 if st.session_state.user_email is None:
     st.markdown('<h1 class="hero-title">🧩 SpectrumEcho</h1>', unsafe_allow_html=True)
     st.markdown(
@@ -308,7 +323,10 @@ if st.session_state.user_email is None:
             
             if submit_login:
                 if email_input and "@" in email_input:
-                    st.session_state.user_email = email_input.strip().lower()
+                    formatted_email = email_input.strip().lower()
+                    st.session_state.user_email = formatted_email
+                    # Grava o e-mail na URL para manter logado ao atualizar a página
+                    st.query_params["user_email"] = formatted_email
                     st.rerun()
                 else:
                     st.error("Por favor, insira um e-mail válido.")
@@ -323,17 +341,19 @@ current_user = st.session_state.user_email
 st.sidebar.title("🧩 SpectrumEcho")
 st.sidebar.write(f"Conectado como: **{current_user}**")
 
-# GERENCIAMENTO DE API KEY (SECRETS OU MANUAL)
-gemini_api_key = st.secrets.get("GEMINI_API_KEY", "")
-
+# GERENCIAMENTO DE API KEY
 with st.sidebar.expander("⚙️ Chave da API Gemini (IA)"):
-    user_api_key = st.text_input("Sua Gemini API Key:", value=gemini_api_key, type="password")
+    user_api_key = st.text_input("Sua Gemini API Key:", value=st.session_state.gemini_api_key, type="password")
     if user_api_key:
-        gemini_api_key = user_api_key
+        st.session_state.gemini_api_key = user_api_key
         st.success("Chave de IA ativa!")
+    elif st.session_state.gemini_api_key:
+        st.success("Chave de IA ativa do servidor!")
 
 if st.sidebar.button("🚪 Sair / Logoff"):
     st.session_state.user_email = None
+    if "user_email" in st.query_params:
+        del st.query_params["user_email"]
     st.rerun()
 
 st.sidebar.markdown("---")
@@ -401,14 +421,15 @@ elif page == "🗣️ Biblioteca de Ecolalias (com IA)":
             
             ai_analysis_result = ""
             if st.button("✨ Analisar e Traduzir com Inteligência Artificial", type="primary"):
-                if not gemini_api_key:
+                active_key = st.session_state.gemini_api_key
+                if not active_key:
                     st.error("Chave da API Gemini não encontrada. Adicione nas configurações da barra lateral.")
                 elif not phrase.strip():
                     st.warning("Digite a frase para ser analisada.")
                 else:
                     with st.spinner("Analisando o contexto com a IA do Gemini..."):
                         ai_analysis_result = translate_echolalia_with_ai(
-                            gemini_api_key, phrase, media_title, selected_profile_name, selected_profile_age
+                            active_key, phrase, media_title, selected_profile_name, selected_profile_age
                         )
 
             with st.form("add_echo_form"):
