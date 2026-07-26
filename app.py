@@ -229,7 +229,7 @@ def get_sensory_logs(user_id, profile_id=None):
         )
     else:
         df = pd.read_sql_query(
-            "SELECT s.*, p.name as profile_name FROM sensory_logs s JOIN profiles p ON s.profile_id = p.id WHERE s.user_id = ? ORDER BY s.timestamp DESC",
+            "SELECT s.*, p.name as profile_name FROM sensory_logs s JOIN profiles p ON s.profile_id = p.id WHERE s.user_id = ?",
             conn, params=(user_id,)
         )
     conn.close()
@@ -242,7 +242,7 @@ def get_all_global_profiles():
     return df
 
 # ---------------------------------------------------------
-# FUNÇÃO DA IA (GEMINI) - VIA GOOGLE-GENERATIVEAI ESTÁVEL
+# FUNÇÃO DA IA (GEMINI) - TENTA MODELOS VÁLIDOS AUTOMATICAMENTE
 # ---------------------------------------------------------
 def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age):
     if not api_key:
@@ -267,9 +267,19 @@ def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age)
         Responda em português, usando tópicos claros e linguagem acessível para famílias.
         """
         
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(prompt)
-        return response.text
+        # Testar sequencialmente os nomes de modelos válidos
+        candidates = ["gemini-1.5-flash-latest", "gemini-pro", "gemini-1.5-pro"]
+        
+        for model_name in candidates:
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt)
+                if response and response.text:
+                    return response.text
+            except Exception:
+                continue
+
+        return "Erro: Nenhum dos modelos Gemini respondeu com sucesso. Verifique se a sua chave de API possui permissões ativas."
 
     except Exception as e:
         return f"Erro na API do Gemini: {str(e)}"
