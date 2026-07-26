@@ -73,7 +73,37 @@ st.markdown("""
             font-size: 1.2rem;
             color: #cbd5e1;
             text-align: center;
+            margin-bottom: 20px;
+        }
+        .ai-badge {
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            border: 1px solid #38bdf8;
+            border-radius: 12px;
+            padding: 16px 24px;
+            text-align: center;
             margin-bottom: 30px;
+            box-shadow: 0 4px 12px rgba(56, 189, 248, 0.15);
+        }
+        .ai-badge-title {
+            color: #ffffff;
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+        .ai-badge-text {
+            color: #e0f2fe;
+            font-size: 0.95rem;
+            margin: 0;
+        }
+        .sidebar-brand-btn {
+            background: none;
+            border: none;
+            color: #38bdf8;
+            font-size: 1.6rem;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0;
+            text-align: left;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -255,11 +285,9 @@ def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age)
 # ---------------------------------------------------------
 # PERSISTÊNCIA DE SESSÃO / COOKIES
 # ---------------------------------------------------------
-# Recuperação automática das credenciais
 if "user_email" not in st.session_state:
     st.session_state.user_email = st.query_params.get("user_email", None)
 
-# BUSCA A API KEY DOS SECRETS DO STREAMLIT DE FORMA GARANTIDA
 env_gemini_key = ""
 try:
     if "GEMINI_API_KEY" in st.secrets:
@@ -271,25 +299,79 @@ if "gemini_api_key" not in st.session_state or not st.session_state.gemini_api_k
     st.session_state.gemini_api_key = env_gemini_key
 
 # ---------------------------------------------------------
-# AUTENTICAÇÃO / TELA INICIAL (LANDING PAGE)
+# BARRA LATERAL (HEADER & BOTÃO HOME)
 # ---------------------------------------------------------
-if st.session_state.user_email is None:
+if st.sidebar.button("🧩 SpectrumEcho", type="tertiary", use_container_width=True):
+    st.session_state.show_landing = True
+    st.rerun()
+
+current_user = st.session_state.user_email
+
+if current_user:
+    st.sidebar.caption(f"Conectado como: **{current_user}**")
+    
+    with st.sidebar.expander("⚙️ Chave da API Gemini (IA)"):
+        user_api_key = st.text_input("Sua Gemini API Key:", value=st.session_state.gemini_api_key, type="password")
+        if user_api_key:
+            st.session_state.gemini_api_key = user_api_key
+            st.success("Chave de IA ativa!")
+        elif st.session_state.gemini_api_key:
+            st.success("Chave de IA ativa do servidor!")
+
+    if st.sidebar.button("🚪 Sair / Logoff"):
+        st.session_state.user_email = None
+        st.session_state.show_landing = False
+        if "user_email" in st.query_params:
+            del st.query_params["user_email"]
+        st.rerun()
+
+st.sidebar.markdown("---")
+
+# Controle de Exibição da Tela Inicial
+if "show_landing" not in st.session_state:
+    st.session_state.show_landing = False
+
+menu_options = []
+if current_user:
+    menu_options = ["🏠 Página Inicial (Apresentação)", "👤 Gestão de Perfis", "🗣️ Biblioteca de Ecolalias (com IA)", "📊 Registro Sensorial", "📈 Dashboard & Análise"]
+    if current_user == ADMIN_EMAIL:
+        menu_options.append("👑 Painel Dev / Admin")
+    
+    selected_page = st.sidebar.radio("Navegação:", menu_options)
+    if selected_page == "🏠 Página Inicial (Apresentação)":
+        st.session_state.show_landing = True
+    else:
+        st.session_state.show_landing = False
+
+# ---------------------------------------------------------
+# TELA INICIAL (LANDING PAGE COM DESTAQUE DA IA)
+# ---------------------------------------------------------
+if st.session_state.user_email is None or st.session_state.show_landing:
     st.markdown('<h1 class="hero-title">🧩 SpectrumEcho</h1>', unsafe_allow_html=True)
     st.markdown(
         '<p class="hero-subtitle">A primeira plataforma para <b>mapeamento de ecolalias</b>, <b>regulação sensorial</b> e <b>relatórios clínicos no TEA</b>.</p>',
         unsafe_allow_html=True
     )
     
-    st.markdown("---")
+    # BANNER DE CREDIBILIDADE DA IA
+    st.markdown("""
+        <div class="ai-badge">
+            <div class="ai-badge-title">⚡ Respostas e Tradução em Tempo Real por IA Especializada</div>
+            <p class="ai-badge-text">
+                Nossa plataforma utiliza uma <b>Inteligência Artificial treinada sob diretrizes de Análise do Comportamento Aplicada (ABA) e Terapia Ocupacional</b>. 
+                As análises de ecolalias e comportamentos sensoriais são processadas instantaneamente, ajudando famílias a entenderem a intenção comunicativa por trás de cada fala.
+            </p>
+        </div>
+    """, unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns(3)
     
     with col1:
         st.markdown("""
             <div class="feature-card">
-                <div class="feature-icon">🗣️</div>
-                <div class="feature-title">Tradutor de Ecolalias</div>
-                <p class="feature-text">Mapeie falas repetidas de desenhos e mídias. Descubra o verdadeiro significado por trás das frases e saiba exatamente como responder com acolhimento.</p>
+                <div class="feature-icon">🤖</div>
+                <div class="feature-title">Tradutor com IA em TEA</div>
+                <p class="feature-text">Mapeie falas repetidas de desenhos e mídias. Nossa IA treinada em suporte ao autismo identifica o contexto original e sugere respostas acolhedoras em segundos.</p>
             </div>
         """, unsafe_allow_html=True)
 
@@ -298,7 +380,7 @@ if st.session_state.user_email is None:
             <div class="feature-card">
                 <div class="feature-icon">📊</div>
                 <div class="feature-title">Diário Sensorial</div>
-                <p class="feature-text">Registre episódios de estresse, gatilhos (sons, luzes, rotina) e estratégias que ajudaram a acalmar a criança ao longo do dia.</p>
+                <p class="feature-text">Registre episódios de estresse, gatilhos (sons, luzes, rotina) e estratégias de regulação que ajudaram a acalmar a criança ao longo do dia.</p>
             </div>
         """, unsafe_allow_html=True)
 
@@ -306,67 +388,42 @@ if st.session_state.user_email is None:
         st.markdown("""
             <div class="feature-card">
                 <div class="feature-icon">📄</div>
-                <div class="feature-title">Relatório para Terapeutas</div>
-                <p class="feature-text">Gere relatórios organizados em PDF para levar às consultas de Neuropediatria, Psicologia e Terapia Ocupacional (ABA/TO).</p>
+                <div class="feature-title">Relatório Clínico</div>
+                <p class="feature-text">Gere dados organizados e prontos para compartilhar nas consultas de Neuropediatria, Psicologia e Terapia Ocupacional (ABA/TO).</p>
             </div>
         """, unsafe_allow_html=True)
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
-    col_empty1, col_login, col_empty2 = st.columns([1, 1.5, 1])
-    with col_login:
-        with st.form("login_form"):
-            st.subheader("🔑 Acesse a sua conta gratuita")
-            st.caption("Seus dados permanecem 100% privados e isolados na sua conta.")
-            email_input = st.text_input("Digite seu e-mail do Google para continuar:", placeholder="exemplo@gmail.com")
-            submit_login = st.form_submit_button("Acessar o SpectrumEcho 🚀", type="primary")
-            
-            if submit_login:
-                if email_input and "@" in email_input:
-                    formatted_email = email_input.strip().lower()
-                    st.session_state.user_email = formatted_email
-                    # Grava o e-mail na URL para manter logado ao atualizar a página
-                    st.query_params["user_email"] = formatted_email
-                    st.rerun()
-                else:
-                    st.error("Por favor, insira um e-mail válido.")
+    if st.session_state.user_email is None:
+        col_empty1, col_login, col_empty2 = st.columns([1, 1.5, 1])
+        with col_login:
+            with st.form("login_form"):
+                st.subheader("🔑 Acesse a sua conta gratuita")
+                st.caption("Seus dados permanecem 100% privados e isolados na sua conta.")
+                email_input = st.text_input("Digite seu e-mail do Google para continuar:", placeholder="exemplo@gmail.com")
+                submit_login = st.form_submit_button("Acessar o SpectrumEcho 🚀", type="primary")
+                
+                if submit_login:
+                    if email_input and "@" in email_input:
+                        formatted_email = email_input.strip().lower()
+                        st.session_state.user_email = formatted_email
+                        st.session_state.show_landing = False
+                        st.query_params["user_email"] = formatted_email
+                        st.rerun()
+                    else:
+                        st.error("Por favor, insira um e-mail válido.")
+    else:
+        st.info("💡 Você já está conectado. Escolha uma opção no menu da barra lateral para continuar navegando nos seus perfis!")
 
     st.stop()
 
 # ---------------------------------------------------------
-# APLICAÇÃO (USUÁRIO LOGADO)
+# APLICAÇÃO (USUÁRIO LOGADO - NAVEGAÇÃO INTERNA)
 # ---------------------------------------------------------
-current_user = st.session_state.user_email
-
-st.sidebar.title("🧩 SpectrumEcho")
-st.sidebar.write(f"Conectado como: **{current_user}**")
-
-# GERENCIAMENTO DE API KEY
-with st.sidebar.expander("⚙️ Chave da API Gemini (IA)"):
-    user_api_key = st.text_input("Sua Gemini API Key:", value=st.session_state.gemini_api_key, type="password")
-    if user_api_key:
-        st.session_state.gemini_api_key = user_api_key
-        st.success("Chave de IA ativa!")
-    elif st.session_state.gemini_api_key:
-        st.success("Chave de IA ativa do servidor!")
-
-if st.sidebar.button("🚪 Sair / Logoff"):
-    st.session_state.user_email = None
-    if "user_email" in st.query_params:
-        del st.query_params["user_email"]
-    st.rerun()
-
-st.sidebar.markdown("---")
-
-menu_options = ["👤 Gestão de Perfis", "🗣️ Biblioteca de Ecolalias (com IA)", "📊 Registro Sensorial", "📈 Dashboard & Análise"]
-
-if current_user == ADMIN_EMAIL:
-    menu_options.append("👑 Painel Dev / Admin")
-
-page = st.sidebar.radio("Navegação:", menu_options)
 
 # --- TELA 1: GESTÃO DE PERFIS ---
-if page == "👤 Gestão de Perfis":
+if selected_page == "👤 Gestão de Perfis":
     st.header("👤 Seus Perfis Cadastrados")
     
     with st.expander("➕ Adicionar Novo Perfil", expanded=True):
@@ -404,7 +461,7 @@ if page == "👤 Gestão de Perfis":
         st.write("Nenhum perfil cadastrado para esta conta ainda.")
 
 # --- TELA 2: BIBLIOTECA DE ECOLALIAS COM IA ---
-elif page == "🗣️ Biblioteca de Ecolalias (com IA)":
+elif selected_page == "🗣️ Biblioteca de Ecolalias (com IA)":
     st.header("🗣️ Dicionário de Tradução Ativa & Ecolalias")
     profiles_df = get_profiles(current_user)
     
@@ -468,7 +525,7 @@ elif page == "🗣️ Biblioteca de Ecolalias (com IA)":
             st.write("Nenhuma ecolalia cadastrada para este perfil ainda.")
 
 # --- TELA 3: REGISTRO SENSORIAL ---
-elif page == "📊 Registro Sensorial":
+elif selected_page == "📊 Registro Sensorial":
     st.header("📊 Diário de Registro Sensorial e Crises")
     profiles_df = get_profiles(current_user)
     
@@ -498,7 +555,7 @@ elif page == "📊 Registro Sensorial":
             st.write("Nenhum registro gravado para este perfil ainda.")
 
 # --- TELA 4: DASHBOARD & ANÁLISE ---
-elif page == "📈 Dashboard & Análise":
+elif selected_page == "📈 Dashboard & Análise":
     st.header("📈 Visão Geral & Relatório")
     profiles_df = get_profiles(current_user)
     
@@ -523,7 +580,7 @@ elif page == "📈 Dashboard & Análise":
         st.write("Sem dados para exibir ainda. Comece cadastrando um perfil.")
 
 # --- TELA 5: PAINEL DEV / ADMIN ---
-elif page == "👑 Painel Dev / Admin":
+elif selected_page == "👑 Painel Dev / Admin":
     st.header("👑 Visão Global do Desenvolvedor")
     st.warning("Esta aba é visível exclusivamente para a conta de administrador.")
     
