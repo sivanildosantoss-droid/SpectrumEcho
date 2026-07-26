@@ -242,44 +242,41 @@ def get_all_global_profiles():
     return df
 
 # ---------------------------------------------------------
-# FUNÇÃO DA IA (GEMINI) - COM TRATAMENTO DE MODELO
+# FUNÇÃO DA IA (GEMINI) - COM MULTI-MODEL FALLBACK
 # ---------------------------------------------------------
 def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age):
-    try:
-        client = genai.Client(api_key=api_key)
-        
-        prompt = f"""
-        Você é um especialista em Análise do Comportamento Aplicada (ABA), Terapia Ocupacional e desenvolvimento infantil no Transtorno do Espectro Autista (TEA).
+    client = genai.Client(api_key=api_key)
+    
+    prompt = f"""
+    Você é um especialista em Análise do Comportamento Aplicada (ABA), Terapia Ocupacional e desenvolvimento infantil no Transtorno do Espectro Autista (TEA).
 
-        Uma pessoa autista ({profile_name}, {age} anos) costuma repetir frequentemente a seguinte frase/ecolalia:
-        - Frase repetida: "{phrase}"
-        - Mídia de origem informada (desenho, jogo, filme, vídeo do YouTube): "{media_title}"
+    Uma pessoa autista ({profile_name}, {age} anos) costuma repetir frequentemente a seguinte frase/ecolalia:
+    - Frase repetida: "{phrase}"
+    - Mídia de origem informada (desenho, jogo, filme, vídeo do YouTube): "{media_title}"
 
-        Sua tarefa é analisar o contexto desta frase na mídia citada (ou o significado geral se for uma variação) e responder de forma acolhedora, objetiva e prática para os pais/cuidadores:
+    Sua tarefa é analisar o contexto desta frase na mídia citada (ou o significado geral se for uma variação) e responder de forma acolhedora, objetiva e prática para os pais/cuidadores:
 
-        1. **Contexto Original:** De onde vem essa frase na mídia/desenho e o que acontecia na cena original?
-        2. **Intenção Comunicativa / Significado Provável:** O que a pessoa pode estar querendo expressar ao usar essa fala no dia a dia? (Ex: expressar animação, pedir algo, demonstrar desconforto sensorial, buscar previsibilidade, etc.)
-        3. **Como Responder / Ação Sugerida:** Uma orientação prática e acolhedora de como os pais ou terapeutas podem validar essa fala e responder de forma funcional.
+    1. **Contexto Original:** De onde vem essa frase na mídia/desenho e o que acontecia na cena original?
+    2. **Intenção Comunicativa / Significado Provável:** O que a pessoa pode estar querendo expressar ao usar essa fala no dia a dia? (Ex: expressar animação, pedir algo, demonstrar desconforto sensorial, buscar previsibilidade, etc.)
+    3. **Como Responder / Ação Sugerida:** Uma orientação prática e acolhedora de como os pais ou terapeutas podem validar essa fala e responder de forma funcional.
 
-        Responda em português, usando tópicos claros e linguagem acessível para famílias.
-        """
-        
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt,
-        )
-        return response.text
-    except Exception as e:
+    Responda em português, usando tópicos claros e linguagem acessível para famílias.
+    """
+    
+    # Lista de modelos suportados pela API para testar em sequência
+    models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-2.0-flash-exp']
+    
+    for model_name in models_to_try:
         try:
-            # Fallback para caso o modelo padrão seja solicitado com sufixo
-            client = genai.Client(api_key=api_key)
             response = client.models.generate_content(
-                model='gemini-1.5-flash-latest',
+                model=model_name,
                 contents=prompt,
             )
             return response.text
-        except Exception as fallback_error:
-            return f"Erro ao consultar a IA: {str(e)}"
+        except Exception:
+            continue
+            
+    return "Erro ao consultar a IA: Nenhum modelo disponível respondeu com a chave fornecida."
 
 # ---------------------------------------------------------
 # PERSISTÊNCIA DE SESSÃO / COOKIES & CHAVE DE API
@@ -461,7 +458,7 @@ if selected_page == "👤 Gestão de Perfis":
                     st.success("Perfil excluído.")
                     st.rerun()
     else:
-        st.write("Nenum perfil cadastrado para esta conta ainda.")
+        st.write("Nenhum perfil cadastrado para esta conta ainda.")
 
 # --- TELA 2: BIBLIOTECA DE ECOLALIAS COM IA ---
 elif selected_page == "🗣️ Biblioteca de Ecolalias (com IA)":
