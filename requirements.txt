@@ -1,6 +1,3 @@
 streamlit
 pandas
-reportlab
-charset-normalizer
-google-auth-oauthlib
 google-generativeai

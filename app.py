@@ -2,7 +2,7 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import datetime
-from google import genai
+import google.generativeai as genai
 
 # ---------------------------------------------------------
 # CONFIGURAÇÃO DA PÁGINA
@@ -189,7 +189,7 @@ def get_all_global_profiles():
     return df
 
 # ---------------------------------------------------------
-# FUNÇÃO DA IA (GEMINI) - USA A SDK OFICIAL NOVA
+# FUNÇÃO DA IA (GEMINI) - USANDO GOOGLE-GENERATIVEAI ESTÁVEL
 # ---------------------------------------------------------
 def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age):
     clean_key = api_key.strip() if api_key else ""
@@ -197,8 +197,7 @@ def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age)
         return "Erro: Nenhuma API Key do Gemini foi informada ou configurada."
 
     try:
-        # Usa o novo SDK google-genai
-        client = genai.Client(api_key=clean_key)
+        genai.configure(api_key=clean_key)
         
         prompt = f"""
         Você é um especialista em Análise do Comportamento Aplicada (ABA), Terapia Ocupacional e desenvolvimento infantil no Transtorno do Espectro Autista (TEA).
@@ -216,23 +215,20 @@ def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age)
         Responda em português, usando tópicos claros e linguagem acessível para famílias.
         """
         
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-        )
-        return response.text
+        # Tenta o modelo flash moderno e cai para pro se necessário
+        for model_name in ["gemini-1.5-flash", "gemini-pro", "gemini-1.5-pro"]:
+            try:
+                model = genai.GenerativeModel(model_name)
+                response = model.generate_content(prompt)
+                if response and response.text:
+                    return response.text
+            except Exception:
+                continue
+
+        return "Erro: Nenhum modelo Gemini respondeu. Verifique sua chave API."
 
     except Exception as e:
-        # Fallback caso o modelo 2.5 exija nome alternativo na conta
-        try:
-            client = genai.Client(api_key=clean_key)
-            response = client.models.generate_content(
-                model="gemini-1.5-flash",
-                contents=prompt,
-            )
-            return response.text
-        except Exception as fallback_error:
-            return f"Erro na API do Gemini: {str(e)}"
+        return f"Erro na API do Gemini: {str(e)}"
 
 # ---------------------------------------------------------
 # GERENCIAMENTO DE SESSÃO E CHAVE DE API
@@ -262,7 +258,6 @@ current_user = st.session_state.user_email
 if current_user:
     st.sidebar.caption(f"Conectado como: **{current_user}**")
     
-    # Campo de Chave API (Disponível para o Admin e editável)
     if current_user.lower() == ADMIN_EMAIL.lower():
         with st.sidebar.expander("⚙️ Chave da API Gemini (Dev Only)", expanded=True):
             user_api_key = st.text_input("Sua Gemini API Key:", value=st.session_state.gemini_api_key, type="password")
