@@ -2,6 +2,8 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import datetime
+from google import genai
+from google.genai import types
 
 # ---------------------------------------------------------
 # CONFIGURAÇÃO DA PÁGINA
@@ -14,9 +16,7 @@ st.set_page_config(
 )
 
 ADMIN_EMAIL = "sivanildo.santoss@gmail.com"
-
-# Cole seu link do arquivo .APK aqui entre as aspas:
-APK_DOWNLOAD_URL = "https://drive.google.com/uc?export=download&id=1kZJmCeGYZGQ77c5Mb9_LH3uz1mkDnEOq"
+APK_DOWNLOAD_URL = "COLE_SEU_LINK_DIRETO_AQUI"
 
 # ---------------------------------------------------------
 # INJEÇÃO DE PWA (MANIFEST + SERVICE WORKER)
@@ -92,6 +92,14 @@ st.markdown("""
         }
         .download-btn:hover {
             background-color: #059669;
+        }
+        .ai-box {
+            background-color: #0f172a;
+            border: 1px solid #38bdf8;
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 12px;
+            margin-bottom: 12px;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -240,6 +248,37 @@ def get_all_global_profiles():
     return df
 
 # ---------------------------------------------------------
+# FUNÇÃO DE IA PARA TRADUÇÃO DE ECOLALIA
+# ---------------------------------------------------------
+def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age):
+    try:
+        client = genai.Client(api_key=api_key)
+        
+        prompt = f"""
+        Você é um especialista em Análise do Comportamento Aplicada (ABA), Terapia Ocupacional e desenvolvimento infantil no Transtorno do Espectro Autista (TEA).
+
+        Uma pessoa autista ({profile_name}, {age} anos) costuma repetir frequentemente a seguinte frase/ecolalia:
+        - Frase repetida: "{phrase}"
+        - Mídia de origem informada (desenho, jogo, filme, vídeo do YouTube): "{media_title}"
+
+        Sua tarefa é analisar o contexto desta frase na mídia citada (ou o significado geral se for uma variação) e responder de forma acolhedora, objetiva e prática para os pais/cuidadores:
+
+        1. **Contexto Original:** De onde vem essa frase na mídia/desenho e o que acontecia na cena original?
+        2. **Intenção Comunicativa / Significado Provável:** O que a pessoa pode estar querendo expressar ao usar essa fala no dia a dia? (Ex: expressar animação, pedir algo, demonstrar desconforto sensorial, buscar previsibilidade, etc.)
+        3. **Como Responder / Ação Sugerida:** Uma orientação prática e acolhedora de como os pais ou terapeutas podem validar essa fala e responder de forma funcional.
+
+        Responda em português, usando tópicos claros e linguagem acessível para famílias.
+        """
+        
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
+        return response.text
+    except Exception as e:
+        return f"Erro ao consultar a IA: {str(e)}"
+
+# ---------------------------------------------------------
 # AUTENTICAÇÃO / TELA INICIAL (LANDING PAGE)
 # ---------------------------------------------------------
 if "user_email" not in st.session_state:
@@ -248,11 +287,10 @@ if "user_email" not in st.session_state:
 if st.session_state.user_email is None:
     st.markdown('<h1 class="hero-title">🧩 SpectrumEcho</h1>', unsafe_allow_html=True)
     st.markdown(
-        '<p class="hero-subtitle">A primeira plataforma para <b>mapeamento de ecolalias</b>, <b>regulação sensorial</b> e <b>relatórios clínicos no TEA</b>.</p>',
+        '<p class="hero-subtitle">A primeira plataforma para <b>mapeamento inteligente de ecolalias por IA</b>, <b>regulação sensorial</b> e <b>relatórios clínicos no TEA</b>.</p>',
         unsafe_allow_html=True
     )
     
-    # Botão para baixar o App no celular
     if APK_DOWNLOAD_URL != "COLE_SEU_LINK_DIRETO_AQUI":
         st.markdown(f'<div style="text-align: center;"><a href="{APK_DOWNLOAD_URL}" target="_blank" class="download-btn">📲 Baixar Aplicativo para Android (.APK)</a></div><br>', unsafe_allow_html=True)
 
@@ -263,9 +301,9 @@ if st.session_state.user_email is None:
     with col1:
         st.markdown("""
             <div class="feature-card">
-                <div class="feature-icon">🗣️</div>
-                <div class="feature-title">Tradutor de Ecolalias</div>
-                <p class="feature-text">Mapeie falas repetidas de desenhos e mídias. Descubra o verdadeiro significado por trás das frases e saiba exatamente como responder com acolhimento.</p>
+                <div class="feature-icon">✨</div>
+                <div class="feature-title">Tradutor Inteligente por IA</div>
+                <p class="feature-text">Digite a frase do desenho, vídeo ou jogo. Nossa IA analisa a cena original e revela o que a pessoa quer comunicar no momento.</p>
             </div>
         """, unsafe_allow_html=True)
 
@@ -283,7 +321,7 @@ if st.session_state.user_email is None:
             <div class="feature-card">
                 <div class="feature-icon">📄</div>
                 <div class="feature-title">Relatório para Terapeutas</div>
-                <p class="feature-text">Gere relatórios organizados em PDF para levar às consultas de Neuropediatria, Psicologia e Terapia Ocupacional (ABA/TO).</p>
+                <p class="feature-text">Gere relatórios organizados para levar às consultas de Neuropediatria, Psicologia e Terapia Ocupacional (ABA/TO).</p>
             </div>
         """, unsafe_allow_html=True)
 
@@ -294,7 +332,7 @@ if st.session_state.user_email is None:
         with st.form("login_form"):
             st.subheader("🔑 Acesse a sua conta gratuita")
             st.caption("Seus dados permanecem 100% privados e isolados na sua conta.")
-            email_input = st.text_input("Digite seu e-mail do Google para continuar:", placeholder="exemplo@gmail.com")
+            email_input = st.text_input("Digite seu e-mail para continuar:", placeholder="exemplo@gmail.com")
             submit_login = st.form_submit_button("Acessar o SpectrumEcho 🚀", type="primary")
             
             if submit_login:
@@ -313,13 +351,26 @@ current_user = st.session_state.user_email
 
 st.sidebar.title("🧩 SpectrumEcho")
 st.sidebar.write(f"Conectado como: **{current_user}**")
+
+# Configuração da Chave da API Gemini
+if "gemini_api_key" not in st.session_state:
+    st.session_state.gemini_api_key = st.secrets.get("GEMINI_API_KEY", "")
+
+with st.sidebar.expander("⚙️ Chave da API Gemini (IA)", expanded=not bool(st.session_state.gemini_api_key)):
+    user_api_key = st.text_input("Sua Gemini API Key:", value=st.session_state.gemini_api_key, type="password")
+    if user_api_key:
+        st.session_state.gemini_api_key = user_api_key
+        st.caption("✅ Chave de IA ativa!")
+    else:
+        st.caption("Obtenha sua chave gratuita em: [aistudio.google.com](https://aistudio.google.com/)")
+
 if st.sidebar.button("🚪 Sair / Logoff"):
     st.session_state.user_email = None
     st.rerun()
 
 st.sidebar.markdown("---")
 
-menu_options = ["👤 Gestão de Perfis", "🗣️ Biblioteca de Ecolalias", "📊 Registro Sensorial", "📈 Dashboard & Análise"]
+menu_options = ["👤 Gestão de Perfis", "🗣️ Biblioteca de Ecolalias (com IA)", "📊 Registro Sensorial", "📈 Dashboard & Análise"]
 
 if current_user == ADMIN_EMAIL:
     menu_options.append("👑 Painel Dev / Admin")
@@ -364,35 +415,68 @@ if page == "👤 Gestão de Perfis":
     else:
         st.write("Nenhum perfil cadastrado para esta conta ainda.")
 
-# --- TELA 2: BIBLIOTECA DE ECOLALIAS ---
-elif page == "🗣️ Biblioteca de Ecolalias":
-    st.header("🗣️ Dicionário de Tradução Ativa & Ecolalias")
+# --- TELA 2: BIBLIOTECA DE ECOLALIAS COM IA ---
+elif page == "🗣️ Biblioteca de Ecolalias (com IA)":
+    st.header("🗣️ Dicionário Inteligente & Tradutor de Ecolalias")
     profiles_df = get_profiles(current_user)
     
     if profiles_df.empty:
-        st.warning("Você precisa cadastrar pelo menos um perfil antes de registrar ecolalias.")
+        st.warning("Você precisa cadastrar pelo menos um perfil na aba 'Gestão de Perfis' antes de traduzir ecolalias.")
     else:
-        profile_map = {row['name']: row['id'] for idx, row in profiles_df.iterrows()}
+        profile_map = {row['name']: (row['id'], row['age']) for idx, row in profiles_df.iterrows()}
         selected_profile_name = st.selectbox("Selecione o Perfil:", list(profile_map.keys()))
-        selected_profile_id = profile_map[selected_profile_name]
+        selected_profile_id, selected_profile_age = profile_map[selected_profile_name]
 
-        with st.expander("➕ Nova Ecolalia / Fala Repetida", expanded=True):
-            with st.form("add_echo_form"):
-                media_title = st.text_input("Origem (ex: Desenho, Filme, Vídeo do YT)")
-                phrase = st.text_input("Frase / Fala Repetida")
-                meaning_context = st.text_area("O que isso realmente significa / O que a pessoa quer comunicar?")
-                submit_echo = st.form_submit_button("Cadastrar Tradução")
-                
-                if submit_echo:
-                    if phrase.strip() and meaning_context.strip():
-                        add_echolalia(current_user, selected_profile_id, media_title, phrase, meaning_context)
-                        st.success("Ecolalia cadastrada com sucesso!")
-                        st.rerun()
-                    else:
-                        st.warning("Preencha a frase e o significado.")
+        st.subheader("✨ Consultar e Traduzir Nova Ecolalia")
+        
+        col_media, col_phrase = st.columns(2)
+        with col_media:
+            media_title = st.text_input("Origem da Fala (ex: Roblox, Bob Esponja, Vídeo do YouTube, Peppa Pig)", placeholder="Ex: Bob Esponja")
+        with col_phrase:
+            phrase = st.text_input("Frase / Fala Repetida", placeholder="Ex: Patrick, vamos caçar água-viva?")
 
-        st.subheader(f"Ecolalias Mapeadas para {selected_profile_name}")
+        if "generated_ai_meaning" not in st.session_state:
+            st.session_state.generated_ai_meaning = ""
+
+        if st.button("✨ Analisar e Traduzir com Inteligência Artificial", type="primary"):
+            if not st.session_state.gemini_api_key:
+                st.error("Por favor, insira sua chave da API Gemini no menu lateral para ativar a IA.")
+            elif not phrase.strip():
+                st.warning("Digite a frase repetida para a IA analisar.")
+            else:
+                with st.spinner("🔍 Analisando contexto da mídia, intenção comunicativa e gerando orientações..."):
+                    ai_result = translate_echolalia_with_ai(
+                        st.session_state.gemini_api_key,
+                        phrase,
+                        media_title if media_title else "Mídia/Desenho Geral",
+                        selected_profile_name,
+                        selected_profile_age
+                    )
+                    st.session_state.generated_ai_meaning = ai_result
+
+        # Exibe a resposta gerada pela IA e permite salvar no histórico
+        if st.session_state.generated_ai_meaning:
+            st.markdown('<div class="ai-box">', unsafe_allow_html=True)
+            st.subheader("💡 Análise Sugerida pela IA:")
+            st.markdown(st.session_state.generated_ai_meaning)
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            final_meaning = st.text_area(
+                "Você pode editar a tradução abaixo se quiser acrescentar detalhes antes de salvar:",
+                value=st.session_state.generated_ai_meaning,
+                height=180
+            )
+
+            if st.button("💾 Salvar Tradução no Histórico do Perfil"):
+                add_echolalia(current_user, selected_profile_id, media_title, phrase, final_meaning)
+                st.success("Ecolalia e tradução salvas com sucesso no histórico!")
+                st.session_state.generated_ai_meaning = ""
+                st.rerun()
+
+        st.markdown("---")
+        st.subheader(f"📚 Ecolalias Registradas de {selected_profile_name}")
         echolalias_df = get_echolalias(current_user, selected_profile_id)
+        
         if not echolalias_df.empty:
             for idx, row in echolalias_df.iterrows():
                 with st.container():
@@ -400,7 +484,8 @@ elif page == "🗣️ Biblioteca de Ecolalias":
                     with col_txt:
                         st.write(f"🗣️ **\"{row['phrase']}\"**")
                         st.caption(f"Origem: {row['media_title'] if row['media_title'] else 'Não informada'}")
-                        st.write(f"💡 **Significado / Ação sugerida:** {row['meaning_context']}")
+                        with st.expander("💡 Ver Tradução & Orientações"):
+                            st.markdown(row['meaning_context'])
                     with col_del:
                         if st.button("🗑️ Apagar", key=f"del_echo_{row['id']}"):
                             delete_echolalia(row['id'])
@@ -408,7 +493,7 @@ elif page == "🗣️ Biblioteca de Ecolalias":
                             st.rerun()
                 st.markdown("---")
         else:
-            st.write("Nenhuma ecolalia cadastrada para este perfil ainda.")
+            st.info("Nenhuma ecolalia salva no histórico deste perfil ainda.")
 
 # --- TELA 3: REGISTRO SENSORIAL ---
 elif page == "📊 Registro Sensorial":
