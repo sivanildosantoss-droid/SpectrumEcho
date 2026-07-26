@@ -2,3 +2,7 @@ streamlit
 pandas
 reportlab
 charset-normalizer
+streamlit
+pandas
+reportlab
+google-auth-oauthlib
