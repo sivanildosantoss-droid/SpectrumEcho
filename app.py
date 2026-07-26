@@ -2,7 +2,7 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import datetime
-from google import genai
+import google.generativeai as genai
 
 # ---------------------------------------------------------
 # CONFIGURAÇÃO DA PÁGINA
@@ -242,14 +242,14 @@ def get_all_global_profiles():
     return df
 
 # ---------------------------------------------------------
-# FUNÇÃO DA IA (GEMINI) - RETORNA O ERRO DETALHADO EM CASO DE FALHA
+# FUNÇÃO DA IA (GEMINI) - VIA GOOGLE-GENERATIVEAI ESTÁVEL
 # ---------------------------------------------------------
 def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age):
     if not api_key:
         return "Erro: Nenhuma API Key do Gemini foi configurada nos secrets do Streamlit."
 
     try:
-        client = genai.Client(api_key=api_key)
+        genai.configure(api_key=api_key)
         
         prompt = f"""
         Você é um especialista em Análise do Comportamento Aplicada (ABA), Terapia Ocupacional e desenvolvimento infantil no Transtorno do Espectro Autista (TEA).
@@ -267,10 +267,8 @@ def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age)
         Responda em português, usando tópicos claros e linguagem acessível para famílias.
         """
         
-        response = client.models.generate_content(
-            model="gemini-1.5-flash",
-            contents=prompt,
-        )
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(prompt)
         return response.text
 
     except Exception as e:
