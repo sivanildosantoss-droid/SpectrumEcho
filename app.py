@@ -7,22 +7,67 @@ from datetime import datetime
 # CONFIGURAÇÃO DA PÁGINA
 # ---------------------------------------------------------
 st.set_page_config(
-    page_title="SpectrumEcho",
+    page_title="SpectrumEcho - Governança Sensorial e Ecolalia",
     page_icon="🧩",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
-# E-mail do Administrador / Desenvolvedor
 ADMIN_EMAIL = "sivanildo.santoss@gmail.com"
 
 # ---------------------------------------------------------
-# BANCO DE DADOS (INICIALIZAÇÃO E MIGRAÇÃO AUTOMÁTICA)
+# ESTILIZAÇÃO CUSTOMIZADA (CSS)
+# ---------------------------------------------------------
+st.markdown("""
+    <style>
+        /* Card de Destaque */
+        .feature-card {
+            background-color: #1e293b;
+            padding: 24px;
+            border-radius: 12px;
+            border: 1px solid #334155;
+            text-align: center;
+            height: 100%;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+        }
+        .feature-title {
+            color: #38bdf8 !important;
+            font-size: 1.25rem;
+            font-weight: bold;
+            margin-bottom: 8px;
+        }
+        .feature-text {
+            color: #94a3b8;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        .hero-title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            color: #38bdf8 !important;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        .hero-subtitle {
+            font-size: 1.2rem;
+            color: #cbd5e1;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# BANCO DE DADOS
 # ---------------------------------------------------------
 def init_db():
     conn = sqlite3.connect("spectrumecho.db")
     cursor = conn.cursor()
     
-    # Tabela de Perfis
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS profiles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,12 +78,7 @@ def init_db():
             support_level INTEGER
         )
     """)
-    try:
-        cursor.execute("ALTER TABLE profiles ADD COLUMN user_id TEXT DEFAULT 'legacy'")
-    except sqlite3.OperationalError:
-        pass
 
-    # Tabela da Biblioteca de Ecolalias
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS echolalia_library (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -50,12 +90,7 @@ def init_db():
             FOREIGN KEY(profile_id) REFERENCES profiles(id)
         )
     """)
-    try:
-        cursor.execute("ALTER TABLE echolalia_library ADD COLUMN user_id TEXT DEFAULT 'legacy'")
-    except sqlite3.OperationalError:
-        pass
 
-    # Tabela de Registros Sensoriais
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS sensory_logs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -68,12 +103,7 @@ def init_db():
             FOREIGN KEY(profile_id) REFERENCES profiles(id)
         )
     """)
-    try:
-        cursor.execute("ALTER TABLE sensory_logs ADD COLUMN user_id TEXT DEFAULT 'legacy'")
-    except sqlite3.OperationalError:
-        pass
     
-    # Migra registros antigos ('legacy') para o e-mail do admin para não perder nada
     cursor.execute("UPDATE profiles SET user_id = ? WHERE user_id = 'legacy'", (ADMIN_EMAIL,))
     cursor.execute("UPDATE echolalia_library SET user_id = ? WHERE user_id = 'legacy'", (ADMIN_EMAIL,))
     cursor.execute("UPDATE sensory_logs SET user_id = ? WHERE user_id = 'legacy'", (ADMIN_EMAIL,))
@@ -83,9 +113,6 @@ def init_db():
 
 init_db()
 
-# ---------------------------------------------------------
-# FUNÇÕES DE MANIPULAÇÃO DE DADOS
-# ---------------------------------------------------------
 def get_connection():
     return sqlite3.connect("spectrumecho.db")
 
@@ -171,7 +198,6 @@ def get_sensory_logs(user_id, profile_id=None):
     conn.close()
     return df
 
-# Funções exclusivas do Admin/Dev
 def get_all_global_profiles():
     conn = get_connection()
     df = pd.read_sql_query("SELECT * FROM profiles", conn)
@@ -179,28 +205,77 @@ def get_all_global_profiles():
     return df
 
 # ---------------------------------------------------------
-# AUTENTICAÇÃO / LOGIN
+# AUTENTICAÇÃO / TELA INICIAL (LANDING PAGE)
 # ---------------------------------------------------------
 if "user_email" not in st.session_state:
     st.session_state.user_email = None
 
-st.sidebar.title("🧩 SpectrumEcho")
-
 if st.session_state.user_email is None:
-    st.title("🧩 SpectrumEcho - Acesso de Usuário")
-    st.subheader("Por favor, faça login com seu e-mail para acessar seus dados com privacidade.")
+    # Cabeçalho Principal
+    st.markdown('<h1 class="hero-title">🧩 SpectrumEcho</h1>', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="hero-subtitle">A primeira plataforma para <b>mapeamento de ecolalias</b>, <b>regulação sensorial</b> e <b>relatórios clínicos no TEA</b>.</p>',
+        unsafe_allow_html=True
+    )
     
-    email_input = st.text_input("Seu E-mail do Google:")
-    if st.button("Entrar", type="primary"):
-        if email_input and "@" in email_input:
-            st.session_state.user_email = email_input.strip().lower()
-            st.rerun()
-        else:
-            st.error("Por favor, insira um e-mail válido.")
+    st.markdown("---")
+
+    # Os 3 Pilares em Cartões
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.markdown("""
+            <div class="feature-card">
+                <div class="feature-icon">🗣️</div>
+                <div class="feature-title">Tradutor de Ecolalias</div>
+                <p class="feature-text">Mapeie falas repetidas de desenhos e mídias. Descubra o verdadeiro significado por trás das frases e saiba exatamente como responder com acolhimento.</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("""
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <div class="feature-title">Diário Sensorial</div>
+                <p class="feature-text">Registre episódios de estresse, gatilhos (sons, luzes, rotina) e estratégias que ajudaram a acalmar a criança ao longo do dia.</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    with col3:
+        st.markdown("""
+            <div class="feature-card">
+                <div class="feature-icon">📄</div>
+                <div class="feature-title">Relatório para Terapeutas</div>
+                <p class="feature-text">Gere relatórios organizados em PDF para levar às consultas de Neuropediatria, Psicologia e Terapia Ocupacional (ABA/TO).</p>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br><br>", unsafe_allow_html=True)
+
+    # Área de Login
+    col_empty1, col_login, col_empty2 = st.columns([1, 1.5, 1])
+    with col_login:
+        with st.form("login_form"):
+            st.subheader("🔑 Acesse a sua conta gratuita")
+            st.caption("Seus dados permanecem 100% privados e isolados na sua conta.")
+            email_input = st.text_input("Digite seu e-mail do Google para continuar:", placeholder="exemplo@gmail.com")
+            submit_login = st.form_submit_button("Acessar o SpectrumEcho 🚀", type="primary")
+            
+            if submit_login:
+                if email_input and "@" in email_input:
+                    st.session_state.user_email = email_input.strip().lower()
+                    st.rerun()
+                else:
+                    st.error("Por favor, insira um e-mail válido.")
+
     st.stop()
 
-# Usuário Ativo
+# ---------------------------------------------------------
+# APLICAÇÃO (USUÁRIO LOGADO)
+# ---------------------------------------------------------
 current_user = st.session_state.user_email
+
+st.sidebar.title("🧩 SpectrumEcho")
 st.sidebar.write(f"Conectado como: **{current_user}**")
 if st.sidebar.button("🚪 Sair / Logoff"):
     st.session_state.user_email = None
@@ -208,20 +283,14 @@ if st.sidebar.button("🚪 Sair / Logoff"):
 
 st.sidebar.markdown("---")
 
-# ---------------------------------------------------------
-# MENU NAVEGAÇÃO
-# ---------------------------------------------------------
 menu_options = ["👤 Gestão de Perfis", "🗣️ Biblioteca de Ecolalias", "📊 Registro Sensorial", "📈 Dashboard & Análise"]
 
-# Se for o e-mail do Desenvolvedor, libera a visão global
 if current_user == ADMIN_EMAIL:
     menu_options.append("👑 Painel Dev / Admin")
 
 page = st.sidebar.radio("Navegação:", menu_options)
 
-# ---------------------------------------------------------
-# TELA 1: GESTÃO DE PERFIS
-# ---------------------------------------------------------
+# --- TELA 1: GESTÃO DE PERFIS ---
 if page == "👤 Gestão de Perfis":
     st.header("👤 Seus Perfis Cadastrados")
     
@@ -259,9 +328,7 @@ if page == "👤 Gestão de Perfis":
     else:
         st.write("Nenhum perfil cadastrado para esta conta ainda.")
 
-# ---------------------------------------------------------
-# TELA 2: BIBLIOTECA DE ECOLALIAS
-# ---------------------------------------------------------
+# --- TELA 2: BIBLIOTECA DE ECOLALIAS ---
 elif page == "🗣️ Biblioteca de Ecolalias":
     st.header("🗣️ Dicionário de Tradução Ativa & Ecolalias")
     profiles_df = get_profiles(current_user)
@@ -307,9 +374,7 @@ elif page == "🗣️ Biblioteca de Ecolalias":
         else:
             st.write("Nenhuma ecolalia cadastrada para este perfil ainda.")
 
-# ---------------------------------------------------------
-# TELA 3: REGISTRO SENSORIAL
-# ---------------------------------------------------------
+# --- TELA 3: REGISTRO SENSORIAL ---
 elif page == "📊 Registro Sensorial":
     st.header("📊 Diário de Registro Sensorial e Crises")
     profiles_df = get_profiles(current_user)
@@ -339,9 +404,7 @@ elif page == "📊 Registro Sensorial":
         else:
             st.write("Nenhum registro gravado para este perfil ainda.")
 
-# ---------------------------------------------------------
-# TELA 4: DASHBOARD & ANÁLISE
-# ---------------------------------------------------------
+# --- TELA 4: DASHBOARD & ANÁLISE ---
 elif page == "📈 Dashboard & Análise":
     st.header("📈 Visão Geral & Relatório")
     profiles_df = get_profiles(current_user)
@@ -366,9 +429,7 @@ elif page == "📈 Dashboard & Análise":
     else:
         st.write("Sem dados para exibir ainda. Comece cadastrando um perfil.")
 
-# ---------------------------------------------------------
-# TELA 5: PAINEL DEV / ADMIN (EXCLUSIVO DO CRIADOR)
-# ---------------------------------------------------------
+# --- TELA 5: PAINEL DEV / ADMIN ---
 elif page == "👑 Painel Dev / Admin":
     st.header("👑 Visão Global do Desenvolvedor")
     st.warning("Esta aba é visível exclusivamente para a conta de administrador.")
