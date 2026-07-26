@@ -95,16 +95,6 @@ st.markdown("""
             font-size: 0.95rem;
             margin: 0;
         }
-        .sidebar-brand-btn {
-            background: none;
-            border: none;
-            color: #38bdf8;
-            font-size: 1.6rem;
-            font-weight: bold;
-            cursor: pointer;
-            padding: 0;
-            text-align: left;
-        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -265,7 +255,7 @@ def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age)
         - Frase repetida: "{phrase}"
         - Mídia de origem informada (desenho, jogo, filme, vídeo do YouTube): "{media_title}"
 
-        Sua tarefa é analisar o contexto desta frase na mídia citada (ou o significado geral se for uma variação) e responder de forma acolhedora, objetiva e prática para os pais/cuidadores:
+        Sua tarefa é analisar o contexto desta frase na mídia citada (or o significado geral se for uma variação) e responder de forma acolhedora, objetiva e prática para os pais/cuidadores:
 
         1. **Contexto Original:** De onde vem essa frase na mídia/desenho e o que acontecia na cena original?
         2. **Intenção Comunicativa / Significado Provável:** O que a pessoa pode estar querendo expressar ao usar essa fala no dia a dia? (Ex: expressar animação, pedir algo, demonstrar desconforto sensorial, buscar previsibilidade, etc.)
@@ -283,15 +273,18 @@ def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age)
         return f"Erro ao consultar a IA: {str(e)}"
 
 # ---------------------------------------------------------
-# PERSISTÊNCIA DE SESSÃO / COOKIES
+# PERSISTÊNCIA DE SESSÃO / COOKIES & CHAVE DE API
 # ---------------------------------------------------------
 if "user_email" not in st.session_state:
     st.session_state.user_email = st.query_params.get("user_email", None)
 
+# BUSCA INTELIGENTE DA API KEY NO STREAMLIT SECRETS
 env_gemini_key = ""
 try:
     if "GEMINI_API_KEY" in st.secrets:
         env_gemini_key = st.secrets["GEMINI_API_KEY"]
+    elif "admin" in st.secrets and "GEMINI_API_KEY" in st.secrets["admin"]:
+        env_gemini_key = st.secrets["admin"]["GEMINI_API_KEY"]
 except Exception:
     pass
 
@@ -310,13 +303,13 @@ current_user = st.session_state.user_email
 if current_user:
     st.sidebar.caption(f"Conectado como: **{current_user}**")
     
-    with st.sidebar.expander("⚙️ Chave da API Gemini (IA)"):
-        user_api_key = st.text_input("Sua Gemini API Key:", value=st.session_state.gemini_api_key, type="password")
-        if user_api_key:
-            st.session_state.gemini_api_key = user_api_key
-            st.success("Chave de IA ativa!")
-        elif st.session_state.gemini_api_key:
-            st.success("Chave de IA ativa do servidor!")
+    # PAINEL DE CONFIGURAÇÃO DA CHAVE - VISÍVEL APENAS PARA O DESENVOLVEDOR / ADMIN
+    if current_user == ADMIN_EMAIL:
+        with st.sidebar.expander("⚙️ Chave da API Gemini (Dev Only)"):
+            user_api_key = st.text_input("Sua Gemini API Key:", value=st.session_state.gemini_api_key, type="password")
+            if user_api_key:
+                st.session_state.gemini_api_key = user_api_key
+                st.success("Chave ativada!")
 
     if st.sidebar.button("🚪 Sair / Logoff"):
         st.session_state.user_email = None
@@ -353,7 +346,6 @@ if st.session_state.user_email is None or st.session_state.show_landing:
         unsafe_allow_html=True
     )
     
-    # BANNER DE CREDIBILIDADE DA IA
     st.markdown("""
         <div class="ai-badge">
             <div class="ai-badge-title">⚡ Respostas e Tradução em Tempo Real por IA Especializada</div>
@@ -480,7 +472,7 @@ elif selected_page == "🗣️ Biblioteca de Ecolalias (com IA)":
             if st.button("✨ Analisar e Traduzir com Inteligência Artificial", type="primary"):
                 active_key = st.session_state.gemini_api_key
                 if not active_key:
-                    st.error("Chave da API Gemini não encontrada. Adicione nas configurações da barra lateral.")
+                    st.error("Chave de IA indisponível no momento. Entre em contato com o suporte.")
                 elif not phrase.strip():
                     st.warning("Digite a frase para ser analisada.")
                 else:
