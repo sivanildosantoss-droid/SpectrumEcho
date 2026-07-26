@@ -2,7 +2,7 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import datetime
-import google.generativeai as genai
+from google import genai
 
 # ---------------------------------------------------------
 # CONFIGURAÇÃO DA PÁGINA
@@ -15,23 +15,6 @@ st.set_page_config(
 )
 
 ADMIN_EMAIL = "sivanildo.santoss@gmail.com"
-
-# ---------------------------------------------------------
-# INJEÇÃO DE PWA (MANIFEST + SERVICE WORKER)
-# ---------------------------------------------------------
-st.markdown("""
-    <head>
-        <link rel="manifest" href="data:application/manifest+json,{%22name%22:%22SpectrumEcho%22,%22short_name%22:%22SpectrumEcho%22,%22start_url%22:%22/%22,%22display%22:%22standalone%22,%22background_color%22:%22%230f172a%22,%22theme_color%22:%22%2338bdf8%22,%22icons%22:[{%22src%22:%22https://em-content.zobj.net/source/apple/391/puzzle-piece_1f9e9.png%22,%22sizes%22:%22512x512%22,%22type%22:%22image/png%22}]}">
-        <meta name="theme-color" content="#38bdf8">
-        <script>
-            if ('serviceWorker' in navigator) {
-                window.addEventListener('load', function() {
-                    navigator.serviceWorker.register('data:text/javascript,self.addEventListener("fetch",function(e){});');
-                });
-            }
-        </script>
-    </head>
-""", unsafe_allow_html=True)
 
 # ---------------------------------------------------------
 # ESTILIZAÇÃO CUSTOMIZADA (CSS)
@@ -47,34 +30,11 @@ st.markdown("""
             height: 100%;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         }
-        .feature-icon {
-            font-size: 2.5rem;
-            margin-bottom: 12px;
-        }
-        .feature-title {
-            color: #38bdf8 !important;
-            font-size: 1.25rem;
-            font-weight: bold;
-            margin-bottom: 8px;
-        }
-        .feature-text {
-            color: #94a3b8;
-            font-size: 0.95rem;
-            line-height: 1.5;
-        }
-        .hero-title {
-            font-size: 2.5rem;
-            font-weight: 800;
-            color: #38bdf8 !important;
-            text-align: center;
-            margin-bottom: 10px;
-        }
-        .hero-subtitle {
-            font-size: 1.2rem;
-            color: #cbd5e1;
-            text-align: center;
-            margin-bottom: 20px;
-        }
+        .feature-icon { font-size: 2.5rem; margin-bottom: 12px; }
+        .feature-title { color: #38bdf8 !important; font-size: 1.25rem; font-weight: bold; margin-bottom: 8px; }
+        .feature-text { color: #94a3b8; font-size: 0.95rem; line-height: 1.5; }
+        .hero-title { font-size: 2.5rem; font-weight: 800; color: #38bdf8 !important; text-align: center; margin-bottom: 10px; }
+        .hero-subtitle { font-size: 1.2rem; color: #cbd5e1; text-align: center; margin-bottom: 20px; }
         .ai-badge {
             background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
             border: 1px solid #38bdf8;
@@ -84,25 +44,19 @@ st.markdown("""
             margin-bottom: 30px;
             box-shadow: 0 4px 12px rgba(56, 189, 248, 0.15);
         }
-        .ai-badge-title {
-            color: #ffffff;
-            font-size: 1.15rem;
-            font-weight: 700;
-            margin-bottom: 6px;
-        }
-        .ai-badge-text {
-            color: #e0f2fe;
-            font-size: 0.95rem;
-            margin: 0;
-        }
+        .ai-badge-title { color: #ffffff; font-size: 1.15rem; font-weight: 700; margin-bottom: 6px; }
+        .ai-badge-text { color: #e0f2fe; font-size: 0.95rem; margin: 0; }
     </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# BANCO DE DADOS
+# BANCO DE DADOS RESILIENTE
 # ---------------------------------------------------------
+def get_connection():
+    return sqlite3.connect("spectrumecho.db", check_same_thread=False)
+
 def init_db():
-    conn = sqlite3.connect("spectrumecho.db")
+    conn = get_connection()
     cursor = conn.cursor()
     
     cursor.execute("""
@@ -140,18 +94,11 @@ def init_db():
             FOREIGN KEY(profile_id) REFERENCES profiles(id)
         )
     """)
-    
-    cursor.execute("UPDATE profiles SET user_id = ? WHERE user_id = 'legacy'", (ADMIN_EMAIL,))
-    cursor.execute("UPDATE echolalia_library SET user_id = ? WHERE user_id = 'legacy'", (ADMIN_EMAIL,))
-    cursor.execute("UPDATE sensory_logs SET user_id = ? WHERE user_id = 'legacy'", (ADMIN_EMAIL,))
 
     conn.commit()
     conn.close()
 
 init_db()
-
-def get_connection():
-    return sqlite3.connect("spectrumecho.db")
 
 def add_profile(user_id, name, age, profile_type, support_level):
     conn = get_connection()
@@ -165,7 +112,7 @@ def add_profile(user_id, name, age, profile_type, support_level):
 
 def get_profiles(user_id):
     conn = get_connection()
-    df = pd.read_sql_query("SELECT * FROM profiles WHERE user_id = ?", conn, params=(user_id,))
+    df = pd.read_sql_query("SELECT * FROM profiles WHERE LOWER(user_id) = LOWER(?)", conn, params=(user_id,))
     conn.close()
     return df
 
@@ -192,12 +139,12 @@ def get_echolalias(user_id, profile_id=None):
     conn = get_connection()
     if profile_id:
         df = pd.read_sql_query(
-            "SELECT e.*, p.name as profile_name FROM echolalia_library e JOIN profiles p ON e.profile_id = p.id WHERE e.user_id = ? AND e.profile_id = ?",
+            "SELECT e.*, p.name as profile_name FROM echolalia_library e JOIN profiles p ON e.profile_id = p.id WHERE LOWER(e.user_id) = LOWER(?) AND e.profile_id = ?",
             conn, params=(user_id, profile_id)
         )
     else:
         df = pd.read_sql_query(
-            "SELECT e.*, p.name as profile_name FROM echolalia_library e JOIN profiles p ON e.profile_id = p.id WHERE e.user_id = ?",
+            "SELECT e.*, p.name as profile_name FROM echolalia_library e JOIN profiles p ON e.profile_id = p.id WHERE LOWER(e.user_id) = LOWER(?)",
             conn, params=(user_id,)
         )
     conn.close()
@@ -224,12 +171,12 @@ def get_sensory_logs(user_id, profile_id=None):
     conn = get_connection()
     if profile_id:
         df = pd.read_sql_query(
-            "SELECT s.*, p.name as profile_name FROM sensory_logs s JOIN profiles p ON s.profile_id = p.id WHERE s.user_id = ? AND s.profile_id = ? ORDER BY s.timestamp DESC",
+            "SELECT s.*, p.name as profile_name FROM sensory_logs s JOIN profiles p ON s.profile_id = p.id WHERE LOWER(s.user_id) = LOWER(?) AND s.profile_id = ? ORDER BY s.timestamp DESC",
             conn, params=(user_id, profile_id)
         )
     else:
         df = pd.read_sql_query(
-            "SELECT s.*, p.name as profile_name FROM sensory_logs s JOIN profiles p ON s.profile_id = p.id WHERE s.user_id = ?",
+            "SELECT s.*, p.name as profile_name FROM sensory_logs s JOIN profiles p ON s.profile_id = p.id WHERE LOWER(s.user_id) = LOWER(?) ORDER BY s.timestamp DESC",
             conn, params=(user_id,)
         )
     conn.close()
@@ -242,14 +189,16 @@ def get_all_global_profiles():
     return df
 
 # ---------------------------------------------------------
-# FUNÇÃO DA IA (GEMINI) - TENTA MODELOS VÁLIDOS AUTOMATICAMENTE
+# FUNÇÃO DA IA (GEMINI) - USA A SDK OFICIAL NOVA
 # ---------------------------------------------------------
 def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age):
-    if not api_key:
-        return "Erro: Nenhuma API Key do Gemini foi configurada nos secrets do Streamlit."
+    clean_key = api_key.strip() if api_key else ""
+    if not clean_key:
+        return "Erro: Nenhuma API Key do Gemini foi informada ou configurada."
 
     try:
-        genai.configure(api_key=api_key)
+        # Usa o novo SDK google-genai
+        client = genai.Client(api_key=clean_key)
         
         prompt = f"""
         Você é um especialista em Análise do Comportamento Aplicada (ABA), Terapia Ocupacional e desenvolvimento infantil no Transtorno do Espectro Autista (TEA).
@@ -267,38 +216,34 @@ def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age)
         Responda em português, usando tópicos claros e linguagem acessível para famílias.
         """
         
-        # Testar sequencialmente os nomes de modelos válidos
-        candidates = ["gemini-1.5-flash-latest", "gemini-pro", "gemini-1.5-pro"]
-        
-        for model_name in candidates:
-            try:
-                model = genai.GenerativeModel(model_name)
-                response = model.generate_content(prompt)
-                if response and response.text:
-                    return response.text
-            except Exception:
-                continue
-
-        return "Erro: Nenhum dos modelos Gemini respondeu com sucesso. Verifique se a sua chave de API possui permissões ativas."
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+        )
+        return response.text
 
     except Exception as e:
-        return f"Erro na API do Gemini: {str(e)}"
+        # Fallback caso o modelo 2.5 exija nome alternativo na conta
+        try:
+            client = genai.Client(api_key=clean_key)
+            response = client.models.generate_content(
+                model="gemini-1.5-flash",
+                contents=prompt,
+            )
+            return response.text
+        except Exception as fallback_error:
+            return f"Erro na API do Gemini: {str(e)}"
 
 # ---------------------------------------------------------
-# PERSISTÊNCIA DE SESSÃO / COOKIES & CHAVE DE API
+# GERENCIAMENTO DE SESSÃO E CHAVE DE API
 # ---------------------------------------------------------
 if "user_email" not in st.session_state:
     st.session_state.user_email = st.query_params.get("user_email", None)
 
-# BUSCA INTELIGENTE DA API KEY NO STREAMLIT SECRETS
 env_gemini_key = ""
 try:
     if "GEMINI_API_KEY" in st.secrets:
         env_gemini_key = st.secrets["GEMINI_API_KEY"]
-    elif "admin" in st.secrets and "GEMINI_API_KEY" in st.secrets["admin"]:
-        env_gemini_key = st.secrets["admin"]["GEMINI_API_KEY"]
-    elif "google" in st.secrets and "GEMINI_API_KEY" in st.secrets["google"]:
-        env_gemini_key = st.secrets["google"]["GEMINI_API_KEY"]
 except Exception:
     pass
 
@@ -306,7 +251,7 @@ if "gemini_api_key" not in st.session_state or not st.session_state.gemini_api_k
     st.session_state.gemini_api_key = env_gemini_key
 
 # ---------------------------------------------------------
-# BARRA LATERAL (HEADER & BOTÃO HOME)
+# BARRA LATERAL (HEADER & NAVEGAÇÃO)
 # ---------------------------------------------------------
 if st.sidebar.button("🧩 SpectrumEcho", type="tertiary", use_container_width=True):
     st.session_state.show_landing = True
@@ -317,12 +262,12 @@ current_user = st.session_state.user_email
 if current_user:
     st.sidebar.caption(f"Conectado como: **{current_user}**")
     
-    # PAINEL DE CONFIGURAÇÃO DA CHAVE - VISÍVEL APENAS PARA O DESENVOLVEDOR / ADMIN
-    if current_user == ADMIN_EMAIL:
-        with st.sidebar.expander("⚙️ Chave da API Gemini (Dev Only)"):
+    # Campo de Chave API (Disponível para o Admin e editável)
+    if current_user.lower() == ADMIN_EMAIL.lower():
+        with st.sidebar.expander("⚙️ Chave da API Gemini (Dev Only)", expanded=True):
             user_api_key = st.text_input("Sua Gemini API Key:", value=st.session_state.gemini_api_key, type="password")
             if user_api_key:
-                st.session_state.gemini_api_key = user_api_key
+                st.session_state.gemini_api_key = user_api_key.strip()
                 st.success("Chave ativada!")
 
     if st.sidebar.button("🚪 Sair / Logoff"):
@@ -334,14 +279,13 @@ if current_user:
 
 st.sidebar.markdown("---")
 
-# Controle de Exibição da Tela Inicial
 if "show_landing" not in st.session_state:
     st.session_state.show_landing = False
 
 menu_options = []
 if current_user:
     menu_options = ["🏠 Página Inicial (Apresentação)", "👤 Gestão de Perfis", "🗣️ Biblioteca de Ecolalias (com IA)", "📊 Registro Sensorial", "📈 Dashboard & Análise"]
-    if current_user == ADMIN_EMAIL:
+    if current_user.lower() == ADMIN_EMAIL.lower():
         menu_options.append("👑 Painel Dev / Admin")
     
     selected_page = st.sidebar.radio("Navegação:", menu_options)
@@ -351,7 +295,7 @@ if current_user:
         st.session_state.show_landing = False
 
 # ---------------------------------------------------------
-# TELA INICIAL (LANDING PAGE COM DESTAQUE DA IA)
+# TELA INICIAL (LANDING PAGE)
 # ---------------------------------------------------------
 if st.session_state.user_email is None or st.session_state.show_landing:
     st.markdown('<h1 class="hero-title">🧩 SpectrumEcho</h1>', unsafe_allow_html=True)
@@ -371,13 +315,12 @@ if st.session_state.user_email is None or st.session_state.show_landing:
     """, unsafe_allow_html=True)
 
     col1, col2, col3 = st.columns(3)
-    
     with col1:
         st.markdown("""
             <div class="feature-card">
                 <div class="feature-icon">🤖</div>
                 <div class="feature-title">Tradutor com IA em TEA</div>
-                <p class="feature-text">Mapeie falas repetidas de desenhos e mídias. Nossa IA treinada em suporte ao autismo identifica o contexto original e sugere respostas acolhedoras em segundos.</p>
+                <p class="feature-text">Mapeie falas repetidas de desenhos e mídias. Nossa IA treinada identifica o contexto original e sugere respostas acolhedoras.</p>
             </div>
         """, unsafe_allow_html=True)
 
@@ -386,7 +329,7 @@ if st.session_state.user_email is None or st.session_state.show_landing:
             <div class="feature-card">
                 <div class="feature-icon">📊</div>
                 <div class="feature-title">Diário Sensorial</div>
-                <p class="feature-text">Registre episódios de estresse, gatilhos (sons, luzes, rotina) e estratégias de regulação que ajudaram a acalmar a criança ao longo do dia.</p>
+                <p class="feature-text">Registre episódios de estresse, gatilhos e estratégias de regulação ao longo do dia.</p>
             </div>
         """, unsafe_allow_html=True)
 
@@ -395,7 +338,7 @@ if st.session_state.user_email is None or st.session_state.show_landing:
             <div class="feature-card">
                 <div class="feature-icon">📄</div>
                 <div class="feature-title">Relatório Clínico</div>
-                <p class="feature-text">Gere dados organizados e prontos para compartilhar nas consultas de Neuropediatria, Psicologia e Terapia Ocupacional (ABA/TO).</p>
+                <p class="feature-text">Gere dados organizados e prontos para compartilhar nas consultas de Neuropediatria e TO.</p>
             </div>
         """, unsafe_allow_html=True)
 
@@ -406,8 +349,8 @@ if st.session_state.user_email is None or st.session_state.show_landing:
         with col_login:
             with st.form("login_form"):
                 st.subheader("🔑 Acesse a sua conta gratuita")
-                st.caption("Seus dados permanecem 100% privados e isolados na sua conta.")
-                email_input = st.text_input("Digite seu e-mail do Google para continuar:", placeholder="exemplo@gmail.com")
+                st.caption("Seus dados permanecem privados e isolados no seu e-mail.")
+                email_input = st.text_input("Digite seu e-mail para continuar:", placeholder="seuemail@gmail.com")
                 submit_login = st.form_submit_button("Acessar o SpectrumEcho 🚀", type="primary")
                 
                 if submit_login:
@@ -420,12 +363,12 @@ if st.session_state.user_email is None or st.session_state.show_landing:
                     else:
                         st.error("Por favor, insira um e-mail válido.")
     else:
-        st.info("💡 Você já está conectado. Escolha uma opção no menu da barra lateral para continuar navegando nos seus perfis!")
+        st.info("💡 Você já está conectado. Escolha uma opção no menu lateral para continuar.")
 
     st.stop()
 
 # ---------------------------------------------------------
-# APLICAÇÃO (USUÁRIO LOGADO - NAVEGAÇÃO INTERNA)
+# APLICAÇÃO (USUÁRIO LOGADO)
 # ---------------------------------------------------------
 
 # --- TELA 1: GESTÃO DE PERFIS ---
@@ -445,7 +388,7 @@ if selected_page == "👤 Gestão de Perfis":
             submit = st.form_submit_button("Salvar Perfil")
             if submit:
                 if name.strip():
-                    add_profile(current_user, name, age, profile_type, support_level)
+                    add_profile(current_user, name.strip(), age, profile_type, support_level)
                     st.success(f"Perfil de '{name}' cadastrado com sucesso!")
                     st.rerun()
                 else:
@@ -472,7 +415,7 @@ elif selected_page == "🗣️ Biblioteca de Ecolalias (com IA)":
     profiles_df = get_profiles(current_user)
     
     if profiles_df.empty:
-        st.warning("Você precisa cadastrar pelo menos um perfil antes de registrar ecolalias.")
+        st.warning("Você precisa cadastrar pelo menos um perfil na aba 'Gestão de Perfis' antes de registrar ecolalias.")
     else:
         profile_map = {row['name']: (row['id'], row['age']) for idx, row in profiles_df.iterrows()}
         selected_profile_name = st.selectbox("Selecione o Perfil:", list(profile_map.keys()))
@@ -480,12 +423,14 @@ elif selected_page == "🗣️ Biblioteca de Ecolalias (com IA)":
 
         with st.expander("➕ Analisar e Traduzir Nova Ecolalia", expanded=True):
             media_title = st.text_input("Origem (ex: Roblox, Peppa Pig, Vídeo do YT)")
-            phrase = st.text_input("Frase / Fala Repetida", placeholder="ex: 'pai, tomate?'")
+            phrase = st.text_input("Frase / Fala Repetida", placeholder="ex: 'tomate? pai tomate?'")
             
             ai_analysis_result = ""
             if st.button("✨ Analisar e Traduzir com Inteligência Artificial", type="primary"):
                 active_key = st.session_state.gemini_api_key
-                if not phrase.strip():
+                if not active_key:
+                    st.error("Chave da API Gemini não foi fornecida ou não está configurada nos Secrets!")
+                elif not phrase.strip():
                     st.warning("Digite a frase para ser analisada.")
                 else:
                     with st.spinner("Analisando o contexto com a IA do Gemini..."):
@@ -542,7 +487,7 @@ elif selected_page == "📊 Registro Sensorial":
 
         with st.form("add_sensory_form"):
             stress_level = st.slider("Nível de Estresse / Desconforto (1 a 5)", 1, 5, 3)
-            triggers = st.text_input("Gatilhados Sensoriais (ex: barulho de liquidificador, luz forte, mudança na rotina)")
+            triggers = st.text_input("Gatilhos Sensoriais (ex: barulho de liquidificador, luz forte)")
             notes = st.text_area("Observações de como a crise foi regulada / O que ajudou?")
             submit_sensory = st.form_submit_button("Registrar Momento")
             
@@ -579,7 +524,7 @@ elif selected_page == "📈 Dashboard & Análise":
         if not all_logs.empty:
             st.dataframe(all_logs, use_container_width=True)
         else:
-            st.info("Registre ecolalias e momentos sensoriais para gerar gráficos e relatórios completos.")
+            st.info("Registre ecolalias e momentos sensoriais para gerar relatórios completos.")
     else:
         st.write("Sem dados para exibir ainda. Comece cadastrando um perfil.")
 
