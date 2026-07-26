@@ -15,6 +15,9 @@ st.set_page_config(
 
 ADMIN_EMAIL = "sivanildo.santoss@gmail.com"
 
+# Cole seu link do arquivo .APK aqui entre as aspas:
+APK_DOWNLOAD_URL = "https://drive.google.com/uc?export=download&id=1kZJmCeGYZGQ77c5Mb9_LH3uz1mkDnEOq"
+
 # ---------------------------------------------------------
 # INJEÇÃO DE PWA (MANIFEST + SERVICE WORKER)
 # ---------------------------------------------------------
@@ -73,6 +76,22 @@ st.markdown("""
             color: #cbd5e1;
             text-align: center;
             margin-bottom: 30px;
+        }
+        .download-btn {
+            display: inline-block;
+            background-color: #10b981;
+            color: white !important;
+            padding: 12px 24px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            border-radius: 8px;
+            text-decoration: none;
+            text-align: center;
+            margin-top: 15px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
+        }
+        .download-btn:hover {
+            background-color: #059669;
         }
     </style>
 """, unsafe_allow_html=True)
@@ -233,6 +252,10 @@ if st.session_state.user_email is None:
         unsafe_allow_html=True
     )
     
+    # Botão para baixar o App no celular
+    if APK_DOWNLOAD_URL != "COLE_SEU_LINK_DIRETO_AQUI":
+        st.markdown(f'<div style="text-align: center;"><a href="{APK_DOWNLOAD_URL}" target="_blank" class="download-btn">📲 Baixar Aplicativo para Android (.APK)</a></div><br>', unsafe_allow_html=True)
+
     st.markdown("---")
 
     col1, col2, col3 = st.columns(3)
