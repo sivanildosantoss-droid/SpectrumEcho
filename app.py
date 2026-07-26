@@ -2,13 +2,13 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import datetime
-import os
+import json
 
 # Importação da nossa Engine de PDF
 from report_generator import SpectrumEchoPDFGenerator
 
 # ---------------------------------------------------------
-# CONFIGURAÇÃO DA PÁGINA & TEMA VISUAL SENSORIAL (CSS)
+# CONFIGURAÇÃO DA PÁGINA
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="SpectrumEcho - Governança Sensorial",
@@ -17,53 +17,49 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Estilização CSS Customizada para Ambiente Sensorial Acolhedor
+# ---------------------------------------------------------
+# ESTILIZAÇÃO VISUAL SENSORIAL (CUSTOM CSS)
+# ---------------------------------------------------------
 st.markdown("""
     <style>
-    /* Fundo principal e tipografia */
-    .stApp {
-        background-color: #0E131F;
-        color: #E2E8F0;
-    }
-    
-    /* Estilização da Barra Lateral */
-    section[data-testid="stSidebar"] {
-        background-color: #1A2332 !important;
-        border-right: 1px solid #2D3748;
-    }
-    
-    /* Enfatizar Títulos */
-    h1, h2, h3 {
-        color: #6366F1 !important;
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    }
-    
-    /* Customização dos Cards / Expanders */
-    div[data-testid="stExpander"] {
-        background-color: #171E2C !important;
-        border: 1px solid #2D3748 !important;
-        border-radius: 10px !important;
-    }
-    
-    /* Botões Principais */
-    div.stButton > button {
-        background: linear-gradient(135deg, #4F46E5 0%, #3B82F6 100%) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 8px !important;
-        padding: 0.5rem 1rem !important;
-        font-weight: 600 !important;
-        transition: all 0.3s ease !important;
-    }
-    div.stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4) !important;
-    }
-    
-    /* Métricas e Painéis */
-    div[data-testid="stMetricValue"] {
-        color: #38BDF8 !important;
-    }
+        /* Estilização Geral do Fundo e Fontes */
+        .main {
+            background-color: #0f172a;
+        }
+        
+        /* Títulos Principais em Destaque Neon Suave */
+        h1, h2, h3 {
+            color: #38bdf8 !important;
+            font-weight: 600 !important;
+        }
+
+        /* Cartões de Conteúdo e Formet */
+        div[data-testid="stForm"] {
+            border: 1px solid #1e293b !important;
+            border-radius: 12px !important;
+            padding: 20px !important;
+            background-color: #1e293b !important;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+        }
+
+        /* Expander Estilizado */
+        .streamlit-expanderHeader {
+            background-color: #1e293b !important;
+            border-radius: 8px !important;
+            color: #f8fafc !important;
+        }
+
+        /* Botões Estilizados */
+        .stButton>button {
+            border-radius: 8px !important;
+            font-weight: bold !important;
+            transition: all 0.3s ease !important;
+        }
+
+        .stButton>button:hover {
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 10px rgba(56, 189, 248, 0.3) !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
@@ -71,58 +67,31 @@ st.markdown("""
 # MOTOR DE TRADUÇÃO COMPORTAMENTAL (SPECTRUM-ECHO ENGINE)
 # ---------------------------------------------------------
 def generate_behavioral_translation(phrase, media_title):
+    """
+    Analisa a estrutura da frase/ecolalia e retorna uma tradução 
+    comportamental automática orientada para a família e terapeutas.
+    """
     phrase_lower = phrase.lower()
-    media_lower = media_title.lower() if media_title else ""
     
-    if "patrulha" in media_lower or "chase" in phrase_lower or "marshall" in phrase_lower or "skye" in phrase_lower:
+    if "sumiu" in phrase_lower or "cade" in phrase_lower or "onde" in phrase_lower:
         return (
-            "🚨 **Tradução (Patrulha Canina):** Expressa estado de alerta, necessidade de socorro/ajuda com alguma dor/desconforto ou busca por um 'resgatador' no ambiente.\n"
-            "💡 **Ação Recomendada:** Entrar na brincadeira de 'resgate' para validar a emoção da criança e identificar a causa real da ansiedade sem pressioná-la."
+            "🔍 **Tradução:** Expressa busca por previsibilidade, estranhamento com mudança no ambiente ou ansiedade por perda de objeto/rotina de interesse.\n"
+            "💡 **Ação Recomendada:** Mostrar à criança onde as coisas estão ou reestabelecer o elemento de segurança visualmente."
         )
-    elif "peppa" in media_lower or "poça" in phrase_lower or "lama" in phrase_lower or "george" in phrase_lower:
+    elif "doente" in phrase_lower or "machucou" in phrase_lower or "quebrou" in phrase_lower:
         return (
-            "🌧️ **Tradução (Peppa Pig):** Busca de autorregulação sensorial através do movimento, brincadeira física ou liberação de energia acumulada.\n"
-            "💡 **Ação Recomendada:** Redirecionar para uma atividade proprioceptiva calma (como pular em almofadas ou aperto leve nos braços)."
-        )
-    elif "mcqueen" in media_lower or "carros" in media_lower or "velocidade" in phrase_lower or "pit stop" in phrase_lower:
-        return (
-            "🏎️ **Tradução (Carros/McQueen):** Expressa necessidade urgente de uma pausa ('Pit Stop') por cansaço físico/mental ou aceleração por hiperatividade sensorial.\n"
-            "💡 **Ação Recomendada:** Convidar a criança para o 'Pit Stop de Recarga' (espaço quieto, água e penumbra)."
-        )
-    elif "bita" in media_lower or "fazendinha" in phrase_lower or "sol" in phrase_lower:
-        return (
-            "☀️ **Tradução (Mundo Bita):** Tentativa de buscar previsibilidade e conforto através de sequências ritmadas e previsíveis da rotina diária.\n"
-            "💡 **Ação Recomendada:** Utilizar o ritmo da música mencionada para conduzir a transição de atividade (ex: hora do banho, hora de comer)."
-        )
-    elif "divertida mente" in media_lower or "tristeza" in phrase_lower or "raiva" in phrase_lower or "alegria" in phrase_lower:
-        return (
-            "🧠 **Tradução (Divertida Mente):** Tentativa direta de nomear um estado emocional interno usando a metáfora visual dos personagens.\n"
-            "💡 **Ação Recomendada:** Acolher a 'sala de controle' da criança. Pergunte qual personagem está no comando no momento."
-        )
-    elif "bluey" in media_lower or "bingo" in phrase_lower or "brincar" in phrase_lower:
-        return (
-            "🐶 **Tradução (Bluey):** Busca de conexão afetiva e validação do mundo imaginário com a figura parental.\n"
-            "💡 **Ação Recomendada:** Dedicar 5 minutos de presença total dentro do jogo proposto pela criança."
-        )
-    elif "sumiu" in phrase_lower or "cade" in phrase_lower or "onde" in phrase_lower:
-        return (
-            "🔍 **Tradução:** Expressa busca por previsibilidade, estranhamento com mudança no ambiente ou ansiedade por perda de objeto de transição.\n"
-            "💡 **Ação Recomendada:** Mostrar à criança onde os objetos estão ou reestabelecer o elemento de segurança visualmente."
-        )
-    elif "doente" in phrase_lower or "machucou" in phrase_lower or "quebrou" in phrase_lower or "dodói" in phrase_lower:
-        return (
-            "⚠️ **Tradução:** Expressa desconforto sensorial físico (dor de barriga, som incômodo, etiqueta de roupa), medo ou sobrecarga difícil de nomear.\n"
-            "💡 **Ação Recomendada:** Verificar estímulos do ambiente e corpo (fome, sede, ruído, roupas) e oferecer local neutro."
+            "⚠️ **Tradução:** Expressa desconforto sensorial físico, medo, sobrecarga ou mal-estar interno que a criança não sabe nomear diretamente.\n"
+            "💡 **Ação Recomendada:** Verificar estímulos do ambiente (som, luz, fome, cansaço) e oferecer um local de descompressão."
         )
     elif "fora dos trilhos" in phrase_lower or "perigo" in phrase_lower or "socorro" in phrase_lower:
         return (
-            "🚨 **Tradução:** Expressa sensação de descontrole interno, quebra severa de expectativa ou pico de sobrecarga sensorial iminente.\n"
-            "💡 **Ação Recomendada:** Reduzir ruídos, afastar estímulos externos e manter tom de voz baixo e constante."
+            "🚨 **Tradução:** Expressa sensação de descontrole, quebra severa de expectativa ou pico de sobrecarga sensorial iminente.\n"
+            "💡 **Ação Recomendada:** Reduzir ruídos, afastar estímulos externos e manter tom de voz calmo sem fazer cobranças."
         )
     else:
         return (
-            f"🎬 **Tradução:** Ecolalia funcional associada à mídia '{media_title if media_title else 'Desenho/Jogo'}'. Usada para autorregulação, validação emocional ou início de interação por hiperfoco.\n"
-            "💡 **Ação Recomendada:** Validar a frase repetida no mesmo tom e oferecer um canal de comunicação tranquilo."
+            f"🎬 **Tradução:** Ecolalia funcional associada à mídia '{media_title}'. Usada pela criança para autorregulação, validação emocional ou tentativa de iniciar interação através de um tema de hiperfoco.\n"
+            "💡 **Ação Recomendada:** Entrar no contexto do desenho com tom acolhedor para validar a comunicação."
         )
 
 # ---------------------------------------------------------
@@ -278,7 +247,7 @@ if module == "👤 Gestão de Perfis":
 # --- MÓDULO 2: BIBLIOTECA DE ECOLALIAS ---
 elif module == "📚 Biblioteca de Ecolalias":
     st.header("📚 Dicionário & Tradutor de Ecolalias")
-    st.write("Digite a frase e o desenho de origem para o sistema gerar a interpretação e orientação comportamental.")
+    st.write("Digite a frase que a criança repete para o sistema gerar a interpretação e orientação para os pais.")
 
     profiles_df = get_profiles()
     if profiles_df.empty:
@@ -290,15 +259,15 @@ elif module == "📚 Biblioteca de Ecolalias":
 
         with st.form("add_echo_form"):
             st.subheader("Cadastrar & Traduzir Ecolalia")
-            media_title = st.text_input("Mídias / Desenho de Origem", placeholder="Ex: Patrulha Canina, McQueen, Mundo Bita, Peppa Pig...")
-            phrase = st.text_input("Frase Repetida Pela Criança", placeholder="Ex: 'Nenhum filhote é tão pequeno', 'Preciso de um Pit Stop'...")
-            user_meaning = st.text_area("Observação do Pai/Mãe (Opcional - Deixe em branco para tradução automática):")
+            media_title = st.text_input("Mídias / Desenho de Origem", placeholder="Ex: Bob Esponja, Roblox, McQueen...")
+            phrase = st.text_input("Frase Repetida Pela Criança", placeholder="Ex: 'Patrick cadê o Bob Esponja?' ou 'O Mcqueen esta doente?'")
+            user_meaning = st.text_area("Observação do Pai/Mãe (Opcional - Deixe em branco para o app traduzir):")
             
             submit_echo = st.form_submit_button("🤖 Traduzir & Salvar no Dicionário")
             if submit_echo and phrase:
                 final_meaning = user_meaning if user_meaning.strip() else generate_behavioral_translation(phrase, media_title)
                 add_echolalia(selected_id, media_title, phrase, final_meaning)
-                st.success("Ecolalia traduzida e cadastrada com sucesso!")
+                st.success("Ecolalia traduzida e cadastrada no dicionário!")
                 st.rerun()
 
         st.divider()
@@ -418,7 +387,6 @@ elif module == "📊 Dashboard & Análise":
 
                 pdf_filename = f"relatorio_{selected_name.replace(' ', '_').lower()}.pdf"
                 
-                import json
                 pdf_gen = SpectrumEchoPDFGenerator(json_data_str=json.dumps(data_payload), filename=pdf_filename)
                 pdf_gen.generate()
 
