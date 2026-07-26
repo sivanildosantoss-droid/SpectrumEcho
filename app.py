@@ -16,11 +16,27 @@ st.set_page_config(
 ADMIN_EMAIL = "sivanildo.santoss@gmail.com"
 
 # ---------------------------------------------------------
+# INJEÇÃO DE PWA (MANIFEST + SERVICE WORKER)
+# ---------------------------------------------------------
+st.markdown("""
+    <head>
+        <link rel="manifest" href="data:application/manifest+json,{%22name%22:%22SpectrumEcho%22,%22short_name%22:%22SpectrumEcho%22,%22start_url%22:%22/%22,%22display%22:%22standalone%22,%22background_color%22:%22%230f172a%22,%22theme_color%22:%22%2338bdf8%22,%22icons%22:[{%22src%22:%22https://em-content.zobj.net/source/apple/391/puzzle-piece_1f9e9.png%22,%22sizes%22:%22512x512%22,%22type%22:%22image/png%22}]}">
+        <meta name="theme-color" content="#38bdf8">
+        <script>
+            if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                    navigator.serviceWorker.register('data:text/javascript,self.addEventListener("fetch",function(e){});');
+                });
+            }
+        </script>
+    </head>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------------
 # ESTILIZAÇÃO CUSTOMIZADA (CSS)
 # ---------------------------------------------------------
 st.markdown("""
     <style>
-        /* Card de Destaque */
         .feature-card {
             background-color: #1e293b;
             padding: 24px;
@@ -211,7 +227,6 @@ if "user_email" not in st.session_state:
     st.session_state.user_email = None
 
 if st.session_state.user_email is None:
-    # Cabeçalho Principal
     st.markdown('<h1 class="hero-title">🧩 SpectrumEcho</h1>', unsafe_allow_html=True)
     st.markdown(
         '<p class="hero-subtitle">A primeira plataforma para <b>mapeamento de ecolalias</b>, <b>regulação sensorial</b> e <b>relatórios clínicos no TEA</b>.</p>',
@@ -220,7 +235,6 @@ if st.session_state.user_email is None:
     
     st.markdown("---")
 
-    # Os 3 Pilares em Cartões
     col1, col2, col3 = st.columns(3)
     
     with col1:
@@ -252,7 +266,6 @@ if st.session_state.user_email is None:
 
     st.markdown("<br><br>", unsafe_allow_html=True)
 
-    # Área de Login
     col_empty1, col_login, col_empty2 = st.columns([1, 1.5, 1])
     with col_login:
         with st.form("login_form"):
