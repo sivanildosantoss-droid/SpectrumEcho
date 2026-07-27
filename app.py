@@ -1,458 +1,414 @@
 import os
-import sqlite3
-import json
-import pandas as pd
 import streamlit as st
-from datetime import datetime
-
-# Importação da nova SDK Oficial do Google Gemini
+import pandas as pd
 from google import genai
-from google.genai import types
-
-# Importação da nossa Engine de PDF
 from report_generator import SpectrumEchoPDFGenerator
 
-# ---------------------------------------------------------
+# -----------------------------------------------------------------------------
 # CONFIGURAÇÃO DA PÁGINA
-# ---------------------------------------------------------
+# -----------------------------------------------------------------------------
 st.set_page_config(
-    page_title="SpectrumEcho - Governança Sensorial",
+    page_title="SpectrumEcho - Governança Sensorial & TEA",
     page_icon="🧩",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# ---------------------------------------------------------
-# CONFIGURAÇÃO DO CLIENTE GEMINI (google-genai)
-# ---------------------------------------------------------
-api_key = st.secrets.get("GEMINI_API_KEY") or os.environ.get("GEMINI_API_KEY")
-client = genai.Client(api_key=api_key) if api_key else None
+# Email do Administrador Master
+ADMIN_EMAIL = st.secrets.get("admin", {}).get("email", "sivanildo.santoss@gmail.com")
 
-# ---------------------------------------------------------
-# ESTILIZAÇÃO VISUAL SENSORIAL (CUSTOM CSS)
-# ---------------------------------------------------------
-st.markdown("""
-    <style>
-        /* Estilização Geral do Fundo e Fontes */
-        .main {
-            background-color: #0f172a;
+# -----------------------------------------------------------------------------
+# INICIALIZAÇÃO DE ESTADO (SESSION STATE)
+# -----------------------------------------------------------------------------
+if "page" not in st.session_state:
+    st.session_state.page = "Inicio"
+
+if "user_email" not in st.session_state:
+    query_params = st.query_params
+    st.session_state.user_email = query_params.get("user_email", "")
+
+# Banco de dados simulado em SessionState com vinculação por e-mail (Isolamento de Dados)
+if "profiles_db" not in st.session_state:
+    st.session_state.profiles_db = [
+        {"email": "sivanildo.santoss@gmail.com", "nome": "Murilo Ferreira", "idade": 8, "tipo": "Criança/Adolescente", "suporte": "Nível 2 (Moderado)"},
+        {"email": "sivanildo.santoss@gmail.com", "nome": "Sivanildo Santos", "idade": 40, "tipo": "Adulto", "suporte": "Nível 1 (Leve)"}
+    ]
+
+if "ecolalias_db" not in st.session_state:
+    st.session_state.ecolalias_db = [
+        {
+            "email": "sivanildo.santoss@gmail.com",
+            "midia": "bob esponja",
+            "frase": "patrick vamos caçar agua viva?",
+            "traducao": "Expressa desejo de brincar, interação social direta e busca por companheirismo.",
+            "acao": "Convidar a criança para uma atividade lúdica compartilhada no mesmo tema."
+        },
+        {
+            "email": "sivanildo.santoss@gmail.com",
+            "midia": "galinha pintadinha",
+            "frase": "o pintinho nao quer dormir",
+            "traducao": "Indicativo de resistência ao sono, agitação motora ou sobrecarga sensorial ao deitar.",
+            "acao": "Iniciar rotina de desaceleração com redução de luzes e sons ambiente."
+        },
+        {
+            "email": "sivanildo.santoss@gmail.com",
+            "midia": "mc queen",
+            "frase": "mamae cade o mc qeen? mamae cade o mc queen?",
+            "traducao": "Expressa busca por previsibilidade, estranhamento com mudança no ambiente ou ansiedade por perda de objeto/rotina de interesse.",
+            "acao": "Mostrar à criança onde as coisas estão ou reestabelecer o elemento de segurança visualmente."
         }
-        
-        /* Títulos Principais em Destaque Neon Suave */
-        h1, h2, h3 {
-            color: #38bdf8 !important;
-            font-weight: 600 !important;
-        }
+    ]
 
-        /* Cartões de Conteúdo e Formet */
-        div[data-testid="stForm"] {
-            border: 1px solid #1e293b !important;
-            border-radius: 12px !important;
-            padding: 20px !important;
-            background-color: #1e293b !important;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
-        }
+if "sensorial_db" not in st.session_state:
+    st.session_state.sensorial_db = []
 
-        /* Expander Estilizado */
-        .streamlit-expanderHeader {
-            background-color: #1e293b !important;
-            border-radius: 8px !important;
-            color: #f8fafc !important;
-        }
+# -----------------------------------------------------------------------------
+# CONEXÃO COM O GEMINI
+# -----------------------------------------------------------------------------
+api_key = os.getenv("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
 
-        /* Botões Estilizados */
-        .stButton>button {
-            border-radius: 8px !important;
-            font-weight: bold !important;
-            transition: all 0.3s ease !important;
-        }
-
-        .stButton>button:hover {
-            transform: translateY(-2px) !important;
-            box-shadow: 0 4px 10px rgba(56, 189, 248, 0.3) !important;
-        }
-    </style>
-""", unsafe_allow_html=True)
-
-# ---------------------------------------------------------
-# MOTOR DE TRADUÇÃO COMPORTAMENTAL (SPECTRUM-ECHO ENGINE + GEMINI)
-# ---------------------------------------------------------
-def generate_behavioral_translation(phrase, media_title, user_notes=""):
-    """
-    Analisa a estrutura da frase/ecolalia usando o Google Gemini (SDK google-genai)
-    e retorna uma tradução comportamental orientada para a família e terapeutas.
-    Utiliza fallback estático caso a chave não esteja presente ou haja erro.
-    """
-    # 1. Tentativa de chamada via Gemini API (google-genai)
-    if client:
-        system_instruction = (
-            "Você é o SpectrumEcho, um especialista em Análise do Comportamento Aplicada (ABA), "
-            "comunicação atípica e ecolalia funcional em pessoas autistas (TEA). "
-            "Sua função é traduzir frases repetidas (ecolalias) trazidas do contexto de mídias/desenhos "
-            "para ajudar familiares e terapeutas a compreender a necessidade real da criança.\n\n"
-            "Formate SEMPRE sua resposta estritamente nesta estrutura de duas seções em Markdown:\n"
-            "🔍 **Tradução:** [Explicação objetiva sobre o significado emocional, sensorial ou comunicativo por trás da ecolalia]\n"
-            "💡 **Ação Recomendada:** [Orientação prática, acolhedora e imediata para os pais/cuidadores]"
-        )
-
-        user_prompt = (
-            f"Mídia/Desenho de Origem: {media_title}\n"
-            f"Frase Repetida (Ecolalia): \"{phrase}\"\n"
-            f"Observações do Contexto (se houver): {user_notes if user_notes else 'Nenhuma observação extra fornecida'}\n\n"
-            "Por favor, gere a tradução comportamental e a ação recomendada."
-        )
-
-        try:
-            # Modelo atualizado para a versão oficial estável
-            response = client.models.generate_content(
-                model="gemini-1.5-flash",
-                contents=user_prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    temperature=0.3
-                )
-            )
-            if response.text:
-                return response.text
-        except Exception as e:
-            st.sidebar.error(f"Erro na API do Gemini: {e}. Usando tradução padrão.")
-
-    # 2. Lógica Fallback de Regras (Caso a API esteja indisponível)
-    phrase_lower = phrase.lower()
-    
-    if "sumiu" in phrase_lower or "cade" in phrase_lower or "onde" in phrase_lower:
-        return (
-            "🔍 **Tradução:** Expressa busca por previsibilidade, estranhamento com mudança no ambiente ou ansiedade por perda de objeto/rotina de interesse.\n"
-            "💡 **Ação Recomendada:** Mostrar à criança onde as coisas estão ou reestabelecer o elemento de segurança visualmente."
-        )
-    elif "doente" in phrase_lower or "machucou" in phrase_lower or "quebrou" in phrase_lower:
-        return (
-            "⚠️ **Tradução:** Expressa desconforto sensorial físico, medo, sobrecarga ou mal-estar interno que a criança não sabe nomear diretamente.\n"
-            "💡 **Ação Recomendada:** Verificar estímulos do ambiente (som, luz, fome, cansaço) e oferecer um local de descompressão."
-        )
-    elif "fora dos trilhos" in phrase_lower or "perigo" in phrase_lower or "socorro" in phrase_lower:
-        return (
-            "🚨 **Tradução:** Expressa sensação de descontrole, quebra severa de expectativa ou pico de sobrecarga sensorial iminente.\n"
-            "💡 **Ação Recomendada:** Reduzir ruídos, afastar estímulos externos e manter tom de voz calmo sem fazer cobranças."
-        )
-    else:
-        return (
-            f"🎬 **Tradução:** Ecolalia funcional associada à mídia '{media_title}'. Usada pela criança para autorregulação, validação emocional ou tentativa de iniciar interação através de um tema de hiperfoco.\n"
-            "💡 **Ação Recomendada:** Entrar no contexto do desenho com tom acolhedor para validar a comunicação."
-        )
-
-# ---------------------------------------------------------
-# BANCO DE DADOS (SQLite Persistente + Funções CRUD)
-# ---------------------------------------------------------
-def init_db():
-    conn = sqlite3.connect("spectrumecho.db")
-    cursor = conn.cursor()
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS profiles (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            age INTEGER,
-            profile_type TEXT,
-            support_level INTEGER
-        )
-    """)
-    
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS echolalia_library (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            profile_id INTEGER,
-            media_title TEXT,
-            phrase TEXT,
-            meaning_context TEXT,
-            FOREIGN KEY(profile_id) REFERENCES profiles(id)
-        )
-    """)
-
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS sensory_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            profile_id INTEGER,
-            timestamp DATETIME,
-            stress_level INTEGER,
-            triggers TEXT,
-            notes TEXT,
-            FOREIGN KEY(profile_id) REFERENCES profiles(id)
-        )
-    """)
-    
-    conn.commit()
-    conn.close()
-
-init_db()
-
-def get_profiles():
-    conn = sqlite3.connect("spectrumecho.db")
-    df = pd.read_sql_query("SELECT * FROM profiles", conn)
-    conn.close()
-    return df
-
-def delete_profile(profile_id):
-    conn = sqlite3.connect("spectrumecho.db")
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM profiles WHERE id = ?", (profile_id,))
-    cursor.execute("DELETE FROM echolalia_library WHERE profile_id = ?", (profile_id,))
-    cursor.execute("DELETE FROM sensory_logs WHERE profile_id = ?", (profile_id,))
-    conn.commit()
-    conn.close()
-
-def add_profile(name, age, profile_type, support_level):
-    conn = sqlite3.connect("spectrumecho.db")
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO profiles (name, age, profile_type, support_level) VALUES (?, ?, ?, ?)",
-        (name, age, profile_type, support_level)
-    )
-    conn.commit()
-    conn.close()
-
-def add_echolalia(profile_id, media_title, phrase, meaning_context):
-    conn = sqlite3.connect("spectrumecho.db")
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO echolalia_library (profile_id, media_title, phrase, meaning_context) VALUES (?, ?, ?, ?)",
-        (profile_id, media_title, phrase, meaning_context)
-    )
-    conn.commit()
-    conn.close()
-
-def delete_echolalia(echo_id):
-    conn = sqlite3.connect("spectrumecho.db")
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM echolalia_library WHERE id = ?", (echo_id,))
-    conn.commit()
-    conn.close()
-
-def get_echolalias(profile_id):
-    conn = sqlite3.connect("spectrumecho.db")
-    df = pd.read_sql_query("SELECT * FROM echolalia_library WHERE profile_id = ?", conn, params=(profile_id,))
-    conn.close()
-    return df
-
-def save_log(profile_id, stress_level, triggers, notes):
-    conn = sqlite3.connect("spectrumecho.db")
-    cursor = conn.cursor()
-    cursor.execute(
-        "INSERT INTO sensory_logs (profile_id, timestamp, stress_level, triggers, notes) VALUES (?, ?, ?, ?, ?)",
-        (profile_id, datetime.now().strftime("%Y-%m-%d %H:%M:%S"), stress_level, ", ".join(triggers), notes)
-    )
-    conn.commit()
-    conn.close()
-
-# ---------------------------------------------------------
-# INTERFACE DO USUÁRIO
-# ---------------------------------------------------------
-st.sidebar.title("🧩 SpectrumEcho")
-st.sidebar.caption("Plataforma Universal de Governança Sensorial")
-
-# Status da API na Sidebar
+client = None
 if api_key:
-    st.sidebar.success("Gemini AI: Conectado 🤖", icon="✅")
-else:
-    st.sidebar.warning("Gemini AI: Sem Chave (Modo Offline)", icon="⚠️")
+    try:
+        client = genai.Client(api_key=api_key)
+    except Exception as e:
+        client = None
 
-module = st.sidebar.radio(
-    "Navegação:",
-    ["👤 Gestão de Perfis", "📚 Biblioteca de Ecolalias", "📝 Registro Sensorial", "📊 Dashboard & Análise"]
-)
+# Verificação se o usuário atual é o Administrador
+current_user = st.session_state.user_email.strip().lower()
+is_admin = (current_user == ADMIN_EMAIL.strip().lower()) and (current_user != "")
 
-# --- MÓDULO 1: GESTÃO DE PERFIS ---
-if module == "👤 Gestão de Perfis":
-    st.header("👤 Perfis Cadastrados")
-    st.write("Gerencie os perfis para personalizar o acompanhamento individual.")
-
-    col_add, col_list = st.columns([1, 1.2])
-
-    with col_add:
-        with st.form("new_profile_form"):
-            st.subheader("Adicionar Novo Perfil")
-            name = st.text_input("Nome Completo / Apelido")
-            age = st.number_input("Idade", min_value=1, max_value=100, value=8)
-            p_type = st.selectbox("Tipo de Perfil", ["Criança/Adolescente", "Adulto"])
-            support_level = st.selectbox("Nível de Suporte (TEA)", [1, 2, 3])
-            
-            submit = st.form_submit_button("Salvar Perfil")
-            if submit and name:
-                add_profile(name, age, p_type, support_level)
-                st.success(f"Perfil de '{name}' cadastrado!")
-                st.rerun()
-
-    with col_list:
-        st.subheader("Perfis Ativos")
-        profiles_df = get_profiles()
-        if profiles_df.empty:
-            st.info("Nenhum perfil cadastrado ainda.")
-        else:
-            for idx, row in profiles_df.iterrows():
-                with st.expander(f"📌 {row['name']} ({row['profile_type']} - {row['age']} anos)"):
-                    st.write(f"**Nível de Suporte:** TEA Nível {row['support_level']}")
-                    st.write(f"**ID do Sistema:** {row['id']}")
-                    if st.button(f"🗑️ Excluir Perfil {row['name']}", key=f"del_prof_{row['id']}"):
-                        delete_profile(row['id'])
-                        st.warning("Perfil e dados associados removidos!")
-                        st.rerun()
-
-# --- MÓDULO 2: BIBLIOTECA DE ECOLALIAS ---
-elif module == "📚 Biblioteca de Ecolalias":
-    st.header("📚 Dicionário & Tradutor de Ecolalias")
-    st.write("Digite a frase que a criança repete para o sistema gerar a interpretação e orientação para os pais.")
-
-    profiles_df = get_profiles()
-    if profiles_df.empty:
-        st.warning("Cadastre ao menos um perfil na aba 'Gestão de Perfis' primeiro.")
-    else:
-        profile_map = {f"{row['name']} (ID: {row['id']})": row['id'] for idx, row in profiles_df.iterrows()}
-        selected_label = st.selectbox("Selecione o Perfil:", list(profile_map.keys()))
-        selected_id = profile_map[selected_label]
-
-        with st.form("add_echo_form"):
-            st.subheader("Cadastrar & Traduzir Ecolalia")
-            media_title = st.text_input("Mídias / Desenho de Origem", placeholder="Ex: Bob Esponja, Roblox, McQueen...")
-            phrase = st.text_input("Frase Repetida Pela Criança", placeholder="Ex: 'Patrick cadê o Bob Esponja?' ou 'O Mcqueen esta doente?'")
-            user_meaning = st.text_area("Observação do Pai/Mãe (Opcional - Ajuda o Gemini a contextualizar):")
-            
-            submit_echo = st.form_submit_button("🤖 Traduzir & Salvar no Dicionário")
-            if submit_echo and phrase:
-                with st.spinner("Analisando ecolalia com a IA do Gemini..."):
-                    final_meaning = generate_behavioral_translation(
-                        phrase=phrase, 
-                        media_title=media_title, 
-                        user_notes=user_meaning
-                    )
-                    add_echolalia(selected_id, media_title, phrase, final_meaning)
-                    st.success("Ecolalia traduzida e cadastrada no dicionário!")
-                    st.rerun()
-
-        st.divider()
-        st.subheader("Dicionário & Tradução Ativa:")
-        
-        echos_df = get_echolalias(selected_id)
-        if echos_df.empty:
-            st.info("Nenhuma ecolalia cadastrada para este perfil ainda.")
-        else:
-            for idx, row in echos_df.iterrows():
-                col_exp, col_btn = st.columns([5, 1])
-                with col_exp:
-                    with st.expander(f"🎬 {row['media_title']} — \"{row['phrase']}\""):
-                        st.markdown(f"{row['meaning_context']}")
-                with col_btn:
-                    if st.button("🗑️", key=f"del_echo_{row['id']}", help="Excluir ecolalia"):
-                        delete_echolalia(row['id'])
-                        st.rerun()
-
-# --- MÓDULO 3: REGISTRO SENSORIAL ---
-elif module == "📝 Registro Sensorial":
-    st.header("📝 Registro de Estresse & Eventos")
+# -----------------------------------------------------------------------------
+# BARRA LATERAL (SIDEBAR)
+# -----------------------------------------------------------------------------
+with st.sidebar:
+    st.markdown("# 🧩 SpectrumEcho")
+    st.caption("Plataforma Universal de Governança Sensorial")
     
-    profiles_df = get_profiles()
-    if profiles_df.empty:
-        st.warning("Cadastre um perfil primeiro.")
+    # Botão de retorno rápido para a Home
+    if st.button("🏠 Ir para Início / Apresentação", use_container_width=True):
+        st.session_state.page = "Inicio"
+        st.rerun()
+
+    st.markdown("---")
+
+    # Status da IA
+    if client:
+        st.success("Gemini AI: Conectado 🤖")
     else:
-        profile_map = {f"{row['name']} (ID: {row['id']})": row['id'] for idx, row in profiles_df.iterrows()}
-        selected_label = st.selectbox("Selecione o Perfil:", list(profile_map.keys()))
-        selected_id = profile_map[selected_label]
+        st.error("Gemini AI: Não Configurado ⚠️")
 
-        stress = st.slider("Nível de Estresse / Sobrecarga Atual (0 a 100)", 0, 100, 30)
-        
-        triggers = st.multiselect(
-            "Gatilhos Identificados:",
-            ["Barulhos Agudos", "Barulho Contínuo", "Toque Físico Inesperado", "Quebra de Rotina", "Excesso de Conversas", "Luzes Fortes", "Textura / Fome / Cansaço"]
-        )
-        
-        notes = st.text_area("Observações Adicionais / O que ajudou a acalmar?")
+    st.markdown("---")
 
-        if st.button("Salvar Registro"):
-            save_log(selected_id, stress, triggers, notes)
-            st.success("Registro diário salvo com sucesso!")
-
-# --- MÓDULO 4: DASHBOARD & ANÁLISE ---
-elif module == "📊 Dashboard & Análise":
-    st.header("📊 Análise Sensorial & Gerador de Relatório PDF")
+    # ÁREA DE AUTENTICAÇÃO E IDENTIFICAÇÃO
+    st.markdown("### 👤 Conta do Usuário")
+    email_input = st.text_input(
+        "Seu E-mail do Google:",
+        value=st.session_state.user_email,
+        placeholder="digite.seu.email@gmail.com",
+        help="Usado para isolar seus dados e histórico de relatórios com segurança."
+    )
     
-    profiles_df = get_profiles()
-    if profiles_df.empty:
-        st.info("Cadastre ao menos um perfil para visualizar as análises.")
+    if email_input != st.session_state.user_email:
+        st.session_state.user_email = email_input
+        st.query_params["user_email"] = email_input
+        st.rerun()
+
+    if not st.session_state.user_email:
+        st.warning("⚠️ Informe seu e-mail para carregar/salvar seus perfis de forma privativa.")
     else:
-        profile_map = {f"{row['name']} (ID: {row['id']})": (row['id'], row['name'], row['profile_type']) for idx, row in profiles_df.iterrows()}
-        selected_label = st.selectbox("Selecione o Perfil para Análise:", list(profile_map.keys()))
-        selected_id, selected_name, selected_type = profile_map[selected_label]
-
-        conn = sqlite3.connect("spectrumecho.db")
-        logs_df = pd.read_sql_query(
-            "SELECT timestamp as Data_Hora, stress_level as Estresse, triggers as Gatilhos, notes as Observacoes FROM sensory_logs WHERE profile_id = ? ORDER BY timestamp ASC",
-            conn,
-            params=(selected_id,)
-        )
-        conn.close()
-
-        if logs_df.empty:
-            st.info(f"Ainda não há registros sensoriais salvos para {selected_name}. Faça alguns registros na aba '📝 Registro Sensorial'.")
+        if is_admin:
+            st.info("👑 **Modo Administrador**\n(Acesso e gerenciamento global ativado)")
         else:
-            col_chart1, col_chart2 = st.columns(2)
-            
-            with col_chart1:
-                st.subheader("📈 Curva de Sobrecarga Sensorial")
-                st.line_chart(logs_df, x="Data_Hora", y="Estresse")
+            st.success("🔒 **Sessão Protegida**\n(Seus dados estão visíveis apenas para você)")
 
-            with col_chart2:
-                st.subheader("📊 Nível Médio de Estresse")
-                avg_stress = logs_df["Estresse"].mean()
-                st.metric(label="Média de Estresse Registrada", value=f"{avg_stress:.1f} / 100")
+    st.markdown("---")
+
+    # MENU DE NAVEGAÇÃO
+    st.markdown("### Navegação:")
+    
+    opcoes_nav = {
+        "Inicio": "🏠 Página Inicial (Apresentação)",
+        "Gestao": "👤 Gestão de Perfis",
+        "Ecolalias": "📚 Biblioteca de Ecolalias (com IA)",
+        "Sensorial": "📝 Registro Sensorial",
+        "Dashboard": "📊 Dashboard & Análise"
+    }
+
+    page_keys = list(opcoes_nav.keys())
+    current_index = 0
+    if st.session_state.page == "Gestao": current_index = 1
+    elif st.session_state.page == "Ecolalias": current_index = 2
+    elif st.session_state.page == "Sensorial": current_index = 3
+    elif st.session_state.page == "Dashboard": current_index = 4
+
+    selected = st.radio(
+        "Ir para:",
+        options=page_keys,
+        format_func=lambda x: opcoes_nav[x],
+        index=current_index,
+        label_visibility="collapsed"
+    )
+    st.session_state.page = selected
+
+# -----------------------------------------------------------------------------
+# CONTEÚDO DAS PÁGINAS
+# -----------------------------------------------------------------------------
+
+# --- PÁGINA 1: INÍCIO / APRESENTAÇÃO ---
+if st.session_state.page == "Inicio":
+    st.title("🧩 Bem-vindo ao SpectrumEcho")
+    st.subheader("Plataforma Universal de Governança Sensorial e Tradução de Ecolalias")
+
+    st.markdown("---")
+    
+    col_about, col_info = st.columns([2, 1])
+
+    with col_about:
+        st.markdown("""
+        ### 🎯 Propósito do Aplicativo
+        O **SpectrumEcho** é uma solução criada para apoiar pais, familiares, cuidadores e terapeutas de pessoas no **Transtorno do Espectro Autista (TEA)**.
+        
+        Muitas vezes, falas repetitivas ou tiradas de desenhos, filmes e vídeos (**ecolalias**) não são apenas repetições sem sentido. Elas são formas legítimas de comunicação, autorregulação emocional e expressão de necessidades sensoriais.
+
+        ### 🤖 Inteligência Artificial Especializada em TEA
+        A plataforma conta com a integração da **Inteligência Artificial Gemini**, treinada sob diretrizes e diretivas especializadas em TEA para:
+        * **Traduzir o Contexto:** Explicar o sentimento ou necessidade por trás da ecolalia.
+        * **Sugerir Ações Práticas:** Orientar a família sobre como reagir no momento da crise ou autorregulação.
+        * **Gerar Relatórios Estruturados:** Facilitar o diálogo com fonoaudiólogos, psicólogos e médicos.
+        """)
+
+    with col_info:
+        st.info("""
+        ### 🔒 Privacidade de Dados
+        * **Isolamento por E-mail:** Apenas você tem acesso aos seus perfis e ecolalias registradas.
+        * **Histórico Seguro:** Digite seu e-mail no menu lateral para acessar suas informações de qualquer dispositivo.
+        """)
+        st.success("""
+        ### 🚀 Dica de Uso Rápido:
+        1. Digite seu e-mail no menu lateral.
+        2. Acesse **Gestão de Perfis** para criar o cadastro.
+        3. Vá até a **Biblioteca de Ecolalias** e faça sua primeira consulta com a IA!
+        """)
+
+# --- PÁGINA 2: GESTÃO DE PERFIS ---
+elif st.session_state.page == "Gestao":
+    st.title("👤 Gestão de Perfis")
+    st.write("Gerencie os perfis para personalizar o acompanhamento individualizado.")
+
+    if not st.session_state.user_email:
+        st.warning("⚠️ Para visualizar ou criar perfis, por favor digite seu e-mail no menu lateral esquerdo.")
+    else:
+        col_cad, col_list = st.columns([1, 1])
+
+        with col_cad:
+            st.markdown("### Adicionar Novo Perfil")
+            with st.form("form_novo_perfil"):
+                nome = st.text_input("Nome Completo / Apelido:")
+                idade = st.number_input("Idade:", min_value=1, max_value=100, value=8)
+                tipo = st.selectbox("Tipo de Perfil:", ["Criança/Adolescente", "Adulto"])
+                suporte = st.selectbox("Nível de Suporte (TEA):", ["Nível 1 (Leve)", "Nível 2 (Moderado)", "Nível 3 (Severo)"])
                 
-                if avg_stress > 70:
-                    st.error("⚠️ Alerta: Média de estresse elevada! Recomendado período de descompressão.")
-                elif avg_stress > 40:
-                    st.warning("⚡ Estresse moderado. Fique atento aos gatilhos frequentes.")
+                btn_salvar = st.form_submit_button("➕ Salvar Perfil", type="primary")
+
+                if btn_salvar:
+                    if nome.strip():
+                        st.session_state.profiles_db.append({
+                            "email": current_user,
+                            "nome": nome.strip(),
+                            "idade": idade,
+                            "tipo": tipo,
+                            "suporte": suporte
+                        })
+                        st.success(f"Perfil de **{nome}** salvo com sucesso!")
+                        st.rerun()
+                    else:
+                        st.error("Por favor, preencha o nome do perfil.")
+
+        with col_list:
+            st.markdown("### Perfis Cadastrados")
+
+            # Filtro de Privacidade: Admin vê todos, usuário comum vê apenas os dele
+            if is_admin:
+                perfis_visiveis = st.session_state.profiles_db
+                st.caption("👑 Visão de Administrador: Exibindo todos os perfis registrados no sistema.")
+            else:
+                perfis_visiveis = [p for p in st.session_state.profiles_db if p.get("email") == current_user]
+
+            if not perfis_visiveis:
+                st.info("Nenhum perfil cadastrado para a sua conta até o momento.")
+            else:
+                for idx, p in enumerate(perfis_visiveis):
+                    dono_tag = f" — *(Dono: {p['email']})*" if is_admin else ""
+                    with st.expander(f"📌 {p['nome']} ({p['tipo']} - {p['idade']} anos){dono_tag}"):
+                        st.write(f"**Nível de Suporte:** {p['suporte']}")
+                        st.write(f"**Conta Vinculada:** {p.get('email', 'Não informada')}")
+
+# --- PÁGINA 3: BIBLIOTECA DE ECOLALIAS ---
+elif st.session_state.page == "Ecolalias":
+    st.title("📚 Dicionário de Tradução Ativa & Ecolalias")
+    st.write("Consulte a Inteligência Artificial especializada para decodificar ecolalias e falas repetitivas.")
+
+    if not st.session_state.user_email:
+        st.warning("⚠️ Digite seu e-mail no menu lateral para acessar a biblioteca e salvar traduções.")
+    else:
+        # Seleção de Perfil para a Ecolalia
+        perfis_usuario = [p['nome'] for p in st.session_state.profiles_db if is_admin or p.get("email") == current_user]
+        if perfis_usuario:
+            perfil_selecionado = st.selectbox("Selecione o Perfil:", perfis_usuario)
+        else:
+            st.info("💡 Recomendado: Cadastre um perfil na aba 'Gestão de Perfis' antes de traduzir.")
+            perfil_selecionado = "Geral"
+
+        st.markdown("---")
+        
+        with st.expander("✨ Analisar e Traduzir Nova Ecolalia", expanded=True):
+            with st.form("form_ecolalia"):
+                midia = st.text_input("Origem (ex: Roblox, Peppa Pig, Vídeo do YT):", placeholder="Ex: Mc Queen, Bob Esponja")
+                frase = st.text_area("Frase / Fala Repetida:", placeholder="Ex: mamae cade o mc queen? mamae cade o mc queen?")
+                btn_analisar = st.form_submit_button("✨ Analisar e Traduzir com Inteligência Artificial", type="primary")
+
+            if btn_analisar:
+                if not frase.strip():
+                    st.warning("Por favor, digite a frase da ecolalia para ser analisada.")
+                elif not client:
+                    st.error("Chave de API do Gemini não configurada ou inválida.")
                 else:
-                    st.success("✅ Estresse sob controle.")
+                    with st.spinner("IA Especialista em TEA analisando o contexto comportamental..."):
+                        try:
+                            prompt = f"""Você é uma Inteligência Artificial especialista em Transtorno do Espectro Autista (TEA), Análise do Comportamento e Comunicação Alternativa.
+                            Analise a seguinte fala repetitiva/ecolalia dita por uma pessoa autista:
 
-            st.divider()
-            st.subheader("📋 Tabela de Eventos Gravados")
-            st.dataframe(logs_df, use_container_width=True)
+                            - Mídia/Contexto de Origem: {midia}
+                            - Frase Emitida: "{frase}"
 
-            st.divider()
-            st.subheader("📄 Relatório Oficial para Médicos e Terapeutas")
-            st.write("Gere um documento em PDF estruturado para levar às consultas de acompanhamento.")
+                            Forneça a análise estritamente no seguinte formato:
+                            🔍 **Tradução Comportamental:** (Explique o sentimento, necessidade de autorregulação ou intenção comunicativa)
+                            💡 **Ação Recomendada:** (Ação prática e acolhedora para o cuidador/terapeuta)
+                            """
+                            
+                            response = client.models.generate_content(
+                                model='gemini-2.5-flash',
+                                contents=prompt
+                            )
+                            
+                            analise_texto = response.text
 
-            if st.button("📄 Gerar e Baixar Relatório PDF"):
-                echos_df = get_echolalias(selected_id)
-                
-                logs_list = []
-                for idx, r in logs_df.iterrows():
-                    logs_list.append({
-                        "stress_level_0_to_100": r["Estresse"],
-                        "triggers": [t.strip() for t in r["Gatilhos"].split(",") if t.strip()],
-                        "behavioral_manifestation": {
-                            "echolalia_detected": True if not echos_df.empty else False,
-                            "echolalia_phrase": echos_df.iloc[0]["phrase"] if not echos_df.empty else "Nenhuma registrada",
-                            "media_source": echos_df.iloc[0]["media_title"] if not echos_df.empty else "N/A"
-                        }
+                            st.session_state.ecolalias_db.append({
+                                "email": current_user,
+                                "perfil": perfil_selecionado,
+                                "midia": midia,
+                                "frase": frase,
+                                "traducao": analise_texto
+                            })
+                            st.success("Ecolalia analisada e salva no seu dicionário!")
+                            st.rerun()
+
+                        except Exception as e:
+                            st.error(f"Erro na chamada da API do Gemini: {e}")
+
+        st.markdown("---")
+        st.markdown("### Dicionário de Ecolalias Salvas")
+
+        if is_admin:
+            ecolalias_visiveis = st.session_state.ecolalias_db
+        else:
+            ecolalias_visiveis = [e for e in st.session_state.ecolalias_db if e.get("email") == current_user]
+
+        if not ecolalias_visiveis:
+            st.info("Nenhuma ecolalia cadastrada para a sua conta ainda.")
+        else:
+            for idx, eco in enumerate(ecolalias_visiveis):
+                col_exp, col_act = st.columns([0.92, 0.08])
+                with col_exp:
+                    dono_str = f" [{eco.get('email')}]" if is_admin else ""
+                    with st.expander(f"🎬 {eco['midia']} — \"{eco['frase']}\"{dono_str}"):
+                        st.markdown(f"{eco['traducao']}")
+                with col_act:
+                    if st.button("🗑️", key=f"del_eco_{idx}"):
+                        st.session_state.ecolalias_db.remove(eco)
+                        st.rerun()
+
+# --- PÁGINA 4: REGISTRO SENSORIAL ---
+elif st.session_state.page == "Sensorial":
+    st.title("📝 Registro Sensorial & Crises")
+    st.write("Acompanhe episódios de sobrecarga, autorregulação e gatilhos sensoriais.")
+
+    if not st.session_state.user_email:
+        st.warning("⚠️ Digite seu e-mail no menu lateral para acessar os registros sensoriais.")
+    else:
+        with st.form("form_sensorial"):
+            st.markdown("### Novo Registro Sensorial")
+            gatilho = st.text_input("Gatilho Identificado (ex: Som alto, Luz forte, Mudança na rotina):")
+            comportamento = st.text_area("Comportamento Observado:")
+            intensidade = st.select_slider("Nível de Sobrecarga/Intensidade:", options=["Leve", "Moderado", "Severo"])
+            estrategia = st.text_input("Estratégia de Autorregulação Utilizada (ex: Fone abafador, Espaço calmo):")
+            
+            btn_sensorial = st.form_submit_button("💾 Salvar Registro Sensorial", type="primary")
+
+            if btn_sensorial:
+                if comportamento.strip():
+                    st.session_state.sensorial_db.append({
+                        "email": current_user,
+                        "gatilho": gatilho,
+                        "comportamento": comportamento,
+                        "intensidade": intensidade,
+                        "estrategia": estrategia
                     })
+                    st.success("Registro sensorial salvo com sucesso!")
+                    st.rerun()
+                else:
+                    st.error("Por favor, descreva o comportamento observado.")
 
-                data_payload = {
-                    "user_profile": {
-                        "patient_id": f"PAT-{selected_id:04d}",
-                        "name": selected_name,
-                        "mode": selected_type
-                    },
-                    "sensory_and_emotional_logs": logs_list
-                }
+        st.markdown("---")
+        st.markdown("### Histórico Sensorial")
 
-                pdf_filename = f"relatorio_{selected_name.replace(' ', '_').lower()}.pdf"
-                
-                pdf_gen = SpectrumEchoPDFGenerator(json_data_str=json.dumps(data_payload), filename=pdf_filename)
-                pdf_gen.generate()
+        if is_admin:
+            registros_visiveis = st.session_state.sensorial_db
+        else:
+            registros_visiveis = [s for s in st.session_state.sensorial_db if s.get("email") == current_user]
 
-                with open(pdf_filename, "rb") as pdf_file:
+        if not registros_visiveis:
+            st.info("Nenhum registro sensorial anotado para esta conta.")
+        else:
+            for idx, s in enumerate(registros_visiveis):
+                dono_txt = f" ({s.get('email')})" if is_admin else ""
+                with st.expander(f"⚡ Gatilho: {s['gatilho']} | Intensidade: {s['intensidade']}{dono_txt}"):
+                    st.write(f"**Comportamento:** {s['comportamento']}")
+                    st.write(f"**Estratégia Utilizada:** {s['estrategia']}")
+
+# --- PÁGINA 5: DASHBOARD & ANÁLISE ---
+elif st.session_state.page == "Dashboard":
+    st.title("📊 Dashboard & Relatórios Estruturados")
+    st.write("Gere relatórios completos para apresentação em consultas médicas ou terapêuticas.")
+
+    if not st.session_state.user_email:
+        st.warning("⚠️ Digite seu e-mail no menu lateral para gerar seus relatórios.")
+    else:
+        # Filtrar dados do usuário atual
+        user_ecos = [e for e in st.session_state.ecolalias_db if is_admin or e.get("email") == current_user]
+        user_sens = [s for s in st.session_state.sensorial_db if is_admin or s.get("email") == current_user]
+
+        col_m1, col_m2 = st.columns(2)
+        with col_m1:
+            st.metric("Total de Ecolalias Traduzidas", len(user_ecos))
+        with col_m2:
+            st.metric("Registros Sensoriais", len(user_sens))
+
+        st.markdown("---")
+        st.markdown("### Exportar Relatório Oficial (PDF)")
+        st.write("O relatório reúne o histórico de ecolalias traduzidas e observações sensoriais vinculadas à sua conta.")
+
+        if st.button("📄 Gerar Relatório Completo em PDF", type="primary"):
+            try:
+                pdf = SpectrumEchoPDFGenerator()
+                filename = pdf.generate(st.session_state.user_email, user_ecos)
+                with open(filename, "rb") as f:
                     st.download_button(
-                        label="💾 Clique aqui para Baixar o PDF",
-                        data=pdf_file,
-                        file_name=pdf_filename,
+                        label="⬇️ Baixar Relatório em PDF",
+                        data=f,
+                        file_name=filename,
                         mime="application/pdf"
                     )
-                st.success("Relatório PDF pronto para download!")
+            except Exception as e:
+                st.error(f"Erro ao gerar relatório em PDF: {e}")
