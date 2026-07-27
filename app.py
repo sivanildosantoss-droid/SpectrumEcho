@@ -189,7 +189,7 @@ def get_all_global_profiles():
     return df
 
 # ---------------------------------------------------------
-# FUNÇÃO DA IA (GEMINI) - COM DIAGNÓSTICO DETALHADO DE ERRO
+# FUNÇÃO DA IA (GEMINI) - USANDO MODELOS COMPATÍVEIS
 # ---------------------------------------------------------
 def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age):
     clean_key = api_key.strip() if api_key else ""
@@ -215,7 +215,7 @@ def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age)
         Responda em português, usando tópicos claros e linguagem acessível para famílias.
         """
         
-        candidate_models = ["gemini-1.5-flash", "models/gemini-1.5-flash", "gemini-1.5-pro", "models/gemini-1.5-pro"]
+        candidate_models = ["gemini-pro", "gemini-1.5-flash-latest", "gemini-1.5-pro-latest"]
         
         last_error = ""
         for model_name in candidate_models:
