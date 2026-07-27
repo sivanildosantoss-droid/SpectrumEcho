@@ -294,22 +294,44 @@ elif st.session_state.page == "Ecolalias":
                         💡 **Ação Recomendada:** (Ação prática e acolhedora para o cuidador/terapeuta)
                         """
                         
-                        # Tenta múltiplos nomes de modelos para evitar 404 em diferentes regiões/contas
-                        modelos_tentativa = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-flash-1.5", "gemini-pro"]
                         analise_texto = None
                         ultimo_erro = None
 
+                        # Lista prioritária de nomes aceitos na API oficial
+                        modelos_tentativa = ["gemini-2.0-flash", "gemini-1.5-flash-8b", "gemini-2.5-flash"]
+                        
+                        # Tenta buscar os modelos disponíveis na própria chave do usuário se os estáticos falharem
                         for mod in modelos_tentativa:
                             try:
                                 response = client.models.generate_content(
                                     model=mod,
                                     contents=prompt
                                 )
-                                analise_texto = response.text
-                                break
+                                if response and response.text:
+                                    analise_texto = response.text
+                                    break
                             except Exception as e:
                                 ultimo_erro = e
                                 continue
+
+                        # Se ainda não funcionou, faz busca dinâmica nos modelos autorizados da chave
+                        if not analise_texto:
+                            try:
+                                for m in client.models.list():
+                                    mod_name = m.name.replace("models/", "")
+                                    if "generateContent" in getattr(m, "supported_generation_methods", []) or "flash" in mod_name or "pro" in mod_name:
+                                        try:
+                                            response = client.models.generate_content(
+                                                model=mod_name,
+                                                contents=prompt
+                                            )
+                                            if response and response.text:
+                                                analise_texto = response.text
+                                                break
+                                        except Exception:
+                                            continue
+                            except Exception as e:
+                                ultimo_erro = e
 
                         if analise_texto:
                             st.session_state.ecolalias_db.append({
@@ -386,7 +408,7 @@ elif st.session_state.page == "Sensorial":
             registros_visiveis = [s for s in st.session_state.sensorial_db if s.get("email") == current_user]
 
         if not registros_visiveis:
-            st.info("Nenum registro sensorial anotado para esta conta.")
+            st.info("Nenhum registro sensorial anotado para esta conta.")
         else:
             for idx, s in enumerate(registros_visiveis):
                 dono_txt = f" ({s.get('email')})" if is_admin else ""
