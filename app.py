@@ -86,9 +86,6 @@ if api_key:
         client = None
 
 def chamar_ia_com_fallback(prompt, fallback_tipo="ecolalia"):
-    """Tenta chamar a API do Gemini com múltiplos modelos. Se esgotar a cota (429), 
-    retorna uma resposta inteligente padrão para não travar o aplicativo."""
-    
     if client:
         modelos = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash"]
         for mod in modelos:
@@ -96,11 +93,9 @@ def chamar_ia_com_fallback(prompt, fallback_tipo="ecolalia"):
                 response = client.models.generate_content(model=mod, contents=prompt)
                 if response and response.text:
                     return response.text.strip(), False
-            except Exception as e:
-                # Se for erro 429 ou outro erro de API, continua testando os outros modelos
+            except Exception:
                 continue
 
-    # Se todos falharem ou não houver chave/cota, retorna resposta de contingência especializada
     if fallback_tipo == "ecolalia":
         return (
             "🔍 **Tradução Comportamental:** (Modo Contingência - Cota de IA Temporariamente Esgotada)\n"
@@ -193,6 +188,21 @@ with st.sidebar:
     )
     st.session_state.page = selected
 
+    # -------------------------------------------------------------------------
+    # ASSINATURA E COPYRIGHT DO CRIADOR (EXIBIDO NA BARRA LATERAL)
+    # -------------------------------------------------------------------------
+    st.markdown("---")
+    st.markdown(
+        """
+        <div style='text-align: center; color: gray; font-size: 12px;'>
+            <p><b>SpectrumEcho v1.0</b></p>
+            <p>© 2026 <b>Sivanildo Santos</b>.<br>Todos os direitos reservados.</p>
+            <p style='font-size: 10px;'>Feito com dedicação para a inclusão e apoio ao TEA 🧩</p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
 # -----------------------------------------------------------------------------
 # CONTEÚDO DAS PÁGINAS
 # -----------------------------------------------------------------------------
@@ -273,7 +283,7 @@ elif st.session_state.page == "Gestao":
 
             if is_admin:
                 perfis_visiveis = st.session_state.profiles_db
-                st.caption("👑 Visão de Administrador: Exibindo todos os perfis registrados no sistema.")
+                st.caption("👑 Visão de Administrador: Exibindo todos los perfis registrados no sistema.")
             else:
                 perfis_visiveis = [p for p in st.session_state.profiles_db if p.get("email", "").lower() == current_user]
 
@@ -376,7 +386,6 @@ elif st.session_state.page == "Sensorial":
         comportamento_in = st.text_area("Comportamento Observado (ex: Tampou os ouvidos, Fez birra e se jogou no chão):")
         intensidade_in = st.select_slider("Nível de Sobrecarga/Intensidade:", options=["Leve", "Moderado", "Severo"])
 
-        # Botão para pedir apoio à IA
         col_ia_btn, col_blank = st.columns([1, 1])
         with col_ia_btn:
             if st.button("🤖 Sugerir Estratégia de Ação com IA", type="secondary", use_container_width=True):
@@ -402,7 +411,6 @@ elif st.session_state.page == "Sensorial":
                         st.session_state.sugestao_estrategia_temp = sugestao_obtida
                         st.success("Estratégia de regulação carregada no campo abaixo!")
 
-        # Campo da Estratégia (preenchido pela IA ou editável pelos pais)
         estrategia_in = st.text_area(
             "Estratégia de Autorregulação / Ação Adotada:",
             value=st.session_state.sugestao_estrategia_temp,
@@ -419,7 +427,7 @@ elif st.session_state.page == "Sensorial":
                     "intensidade": intensidade_in,
                     "estrategia": estrategia_in if estrategia_in.strip() else "Nenhuma registrada"
                 })
-                st.session_state.sugestao_estrategia_temp = "" # Limpa a sugestão temporária
+                st.session_state.sugestao_estrategia_temp = ""
                 st.success("Registro sensorial e estratégia salvos com sucesso!")
                 st.rerun()
             else:
@@ -466,7 +474,6 @@ elif st.session_state.page == "Dashboard":
 
         if st.button("📄 Gerar Relatório Completo em PDF", type="primary"):
             try:
-                # 1. Perfil Principal
                 primary_profile = user_profs[0] if user_profs else {
                     "email": st.session_state.user_email,
                     "nome": "Usuário",
@@ -478,7 +485,6 @@ elif st.session_state.page == "Dashboard":
                 p_nome = primary_profile.get("nome", "Usuário")
                 p_tipo = primary_profile.get("tipo", "Criança/Adolescente")
 
-                # 2. Formatação dos logs conforme a classe SpectrumEchoPDFGenerator espera
                 sensory_logs = []
                 for eco in user_ecos:
                     sensory_logs.append({
@@ -503,7 +509,6 @@ elif st.session_state.page == "Dashboard":
                         }
                     })
 
-                # 3. Payload exato esperado pelo report_generator.py
                 report_payload = {
                     "user_profile": {
                         "patient_id": st.session_state.user_email if st.session_state.user_email else "paciente_anonimo",
@@ -519,8 +524,6 @@ elif st.session_state.page == "Dashboard":
                 }
                 
                 json_str = json.dumps(report_payload, ensure_ascii=False)
-                
-                # Instancia e gera o PDF chamando .generate()
                 pdf_gen = SpectrumEchoPDFGenerator(json_str)
                 pdf_gen.generate()
                 
