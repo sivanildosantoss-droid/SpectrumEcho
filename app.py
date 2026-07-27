@@ -439,7 +439,7 @@ elif st.session_state.page == "Dashboard":
 
         if st.button("📄 Gerar Relatório Completo em PDF", type="primary"):
             try:
-                # Pega o primeiro perfil para a chave singular 'user_profile'
+                # Perfil principal selecionado
                 primary_profile = user_profs[0] if user_profs else {
                     "email": st.session_state.user_email,
                     "nome": "Usuário",
@@ -448,10 +448,27 @@ elif st.session_state.page == "Dashboard":
                     "suporte": "-"
                 }
 
-                # Estrutura completa cobrindo 'user_profile', 'profiles' e variações de chaves de ecolalias
+                p_nome = primary_profile.get("nome", "Usuário")
+                p_idade = str(primary_profile.get("idade", "-"))
+                p_suporte = primary_profile.get("suporte", "-")
+
+                # Payload blindado mapeando todas as variações conhecidas do gerador de PDF
                 report_payload = {
+                    "patient_id": st.session_state.user_email,
+                    "patient_name": p_nome,
+                    "patient_age": p_idade,
+                    "support_level": p_suporte,
                     "user_email": st.session_state.user_email,
-                    "user_profile": primary_profile,
+                    "user_profile": {
+                        "patient_id": st.session_state.user_email,
+                        "patient_name": p_nome,
+                        "patient_age": p_idade,
+                        "support_level": p_suporte,
+                        "nome": p_nome,
+                        "idade": p_idade,
+                        "suporte": p_suporte,
+                        "email": st.session_state.user_email
+                    },
                     "profiles": user_profs,
                     "ecolalias": user_ecos,
                     "ecolalia_records": user_ecos,
@@ -461,7 +478,7 @@ elif st.session_state.page == "Dashboard":
                 
                 json_str = json.dumps(report_payload, ensure_ascii=False)
                 
-                # Instancia garantindo o envio da string json esperada
+                # Instancia enviando a string json esperada
                 pdf_gen = SpectrumEchoPDFGenerator(json_str)
                 
                 # Executa a geração do PDF
