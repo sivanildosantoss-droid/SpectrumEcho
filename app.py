@@ -452,7 +452,7 @@ elif st.session_state.page == "Dashboard":
                 p_idade = str(primary_profile.get("idade", "-"))
                 p_suporte = primary_profile.get("suporte", "-")
 
-                # Formata a lista de perfis injetando chaves em PT e EN para evitar KeyError interno
+                # Formata a lista de perfis injetando chaves em PT/EN e configurações globais
                 formatted_profiles = []
                 for prof in (user_profs or [primary_profile]):
                     prof_copy = dict(prof)
@@ -460,10 +460,31 @@ elif st.session_state.page == "Dashboard":
                     prof_copy["patient_name"] = prof.get("nome", "Usuário")
                     prof_copy["age"] = str(prof.get("idade", "-"))
                     prof_copy["support_level"] = prof.get("suporte", "-")
+                    prof_copy["mode"] = "standard"
                     formatted_profiles.append(prof_copy)
 
-                # Payload hiper-compatível (cobre todos os padrões de chave conhecidos)
+                # Formata ecolalias garantindo modo e nome de campos
+                formatted_ecolalias = []
+                for eco in user_ecos:
+                    eco_copy = dict(eco)
+                    eco_copy["mode"] = "standard"
+                    eco_copy["phrase"] = eco.get("frase", "")
+                    eco_copy["translation"] = eco.get("traducao", "")
+                    formatted_ecolalias.append(eco_copy)
+
+                # Formata registros sensoriais garantindo modo
+                formatted_sensorial = []
+                for sens in user_sens:
+                    sens_copy = dict(sens)
+                    sens_copy["mode"] = "standard"
+                    formatted_sensorial.append(sens_copy)
+
+                # Payload hiper-completo cobrindo a chave 'mode' e todas as variações conhecidas
                 report_payload = {
+                    "mode": "standard",
+                    "pdf_mode": "standard",
+                    "export_mode": "full",
+                    "type": "report",
                     "name": p_nome,
                     "patient_id": st.session_state.user_email,
                     "patient_name": p_nome,
@@ -471,6 +492,7 @@ elif st.session_state.page == "Dashboard":
                     "support_level": p_suporte,
                     "user_email": st.session_state.user_email,
                     "user_profile": {
+                        "mode": "standard",
                         "name": p_nome,
                         "patient_id": st.session_state.user_email,
                         "patient_name": p_nome,
@@ -482,10 +504,10 @@ elif st.session_state.page == "Dashboard":
                         "email": st.session_state.user_email
                     },
                     "profiles": formatted_profiles,
-                    "ecolalias": user_ecos,
-                    "ecolalia_records": user_ecos,
-                    "sensorial": user_sens,
-                    "sensory_records": user_sens
+                    "ecolalias": formatted_ecolalias,
+                    "ecolalia_records": formatted_ecolalias,
+                    "sensorial": formatted_sensorial,
+                    "sensory_records": formatted_sensorial
                 }
                 
                 json_str = json.dumps(report_payload, ensure_ascii=False)
