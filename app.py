@@ -19,11 +19,20 @@ st.set_page_config(
 ADMIN_EMAIL = st.secrets.get("admin", {}).get("email", "sivanildo.santoss@gmail.com")
 
 # -----------------------------------------------------------------------------
-# ARMAZENAMENTO PERSISTENTE ENTRE SESSÕES (CACHE GLOBAL DE DADOS)
+# SISTEMA DE PERSISTÊNCIA EM ARQUIVO LOCAL (JSON)
 # -----------------------------------------------------------------------------
-@st.cache_resource
-def get_global_db():
-    return {
+DB_FILE = "database.json"
+
+def carregar_banco():
+    if os.path.exists(DB_FILE):
+        try:
+            with open(DB_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    
+    # Banco padrão inicial caso o arquivo não exista
+    dados_iniciais = {
         "profiles": [
             {"email": "sivanildo.santoss@gmail.com", "nome": "Murilo Ferreira", "idade": 8, "tipo": "Criança/Adolescente", "suporte": "Nível 2 (Moderado)"},
             {"email": "sivanildo.santoss@gmail.com", "nome": "Sivanildo Santos", "idade": 40, "tipo": "Adulto", "suporte": "Nível 1 (Leve)"}
@@ -33,28 +42,29 @@ def get_global_db():
                 "email": "sivanildo.santoss@gmail.com",
                 "midia": "bob esponja",
                 "frase": "patrick vamos caçar agua viva?",
-                "traducao": "🔍 **Tradução Comportamental:** Expressa desejo de brincar, interação social direta e busca por companheirismo.\n💡 **Ação Recomendada:** Convidar para uma atividade lúdica compartilhada no mesmo tema.",
-                "acao": "Convidar a criança para uma atividade lúdica compartilhada no mesmo tema."
+                "traducao": "🔍 **Tradução Comportamental:** Expressa desejo de brincar, interação social direta e busca por companheirismo.\n💡 **Ação Recomendada:** Convidar para uma atividade lúdica compartilhada no mesmo tema."
             },
             {
                 "email": "sivanildo.santoss@gmail.com",
                 "midia": "galinha pintadinha",
                 "frase": "o pintinho nao quer dormir",
-                "traducao": "🔍 **Tradução Comportamental:** Indicativo de resistência ao sono, agitação motora ou sobrecarga sensorial ao deitar.\n💡 **Ação Recomendada:** Iniciar rotina de desaceleração com redução de luzes e sons ambiente.",
-                "acao": "Iniciar rotina de desaceleração com redução de luzes e sons ambiente."
-            },
-            {
-                "email": "sivanildo.santoss@gmail.com",
-                "midia": "mc queen",
-                "frase": "mamae cade o mc qeen? mamae cade o mc queen?",
-                "traducao": "🔍 **Tradução Comportamental:** Expressa busca por previsibilidade, estranhamento com mudança no ambiente ou ansiedade por perda de objeto/rotina de interesse.\n💡 **Ação Recomendada:** Mostrar onde as coisas estão ou reestabelecer o elemento de segurança visualmente.",
-                "acao": "Mostrar à criança onde as coisas estão ou reestabelecer o elemento de segurança visualmente."
+                "traducao": "🔍 **Tradução Comportamental:** Indicativo de resistência ao sono, agitação motora ou sobrecarga sensorial ao deitar.\n💡 **Ação Recomendada:** Iniciar rotina de desaceleração com redução de luzes e sons ambiente."
             }
         ],
         "sensorial": []
     }
+    salvar_banco(dados_iniciais)
+    return dados_iniciais
 
-global_db = get_global_db()
+def salvar_banco(dados):
+    try:
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(dados, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        st.error(f"Erro ao salvar banco de dados: {e}")
+
+# Carrega os dados persistidos
+global_db = carregar_banco()
 
 # -----------------------------------------------------------------------------
 # INICIALIZAÇÃO DE ESTADO (SESSION STATE)
@@ -69,9 +79,16 @@ if "user_email" not in st.session_state:
 if "sugestao_estrategia_temp" not in st.session_state:
     st.session_state.sugestao_estrategia_temp = ""
 
+# Sincroniza com as variáveis globais carregadas do arquivo
 st.session_state.profiles_db = global_db["profiles"]
 st.session_state.ecolalias_db = global_db["ecolalias"]
 st.session_state.sensorial_db = global_db["sensorial"]
+
+def atualizar_e_salvar():
+    global_db["profiles"] = st.session_state.profiles_db
+    global_db["ecolalias"] = st.session_state.ecolalias_db
+    global_db["sensorial"] = st.session_state.sensorial_db
+    salvar_banco(global_db)
 
 # -----------------------------------------------------------------------------
 # CONEXÃO COM O GEMINI & FUNÇÃO DE FALLBACK SEGURO
@@ -139,7 +156,7 @@ with st.sidebar:
         if is_admin:
             st.info("👑 **Modo Administrador**\n(Acesso e gerenciamento global ativado)")
         else:
-            st.success("🔒 **Sessão Protegida**\n(Seus dados estão visíveis apenas para você)")
+            st.success("🔒 **Sessão Protegida**\n(Seus dados estão salvos para o seu e-mail)")
             
         if st.button("🚪 Sair / Logout", type="secondary", use_container_width=True):
             st.session_state.user_email = ""
@@ -188,9 +205,7 @@ with st.sidebar:
     )
     st.session_state.page = selected
 
-    # -------------------------------------------------------------------------
-    # ASSINATURA E COPYRIGHT DO CRIADOR (EXIBIDO NA BARRA LATERAL)
-    # -------------------------------------------------------------------------
+    # Assinatura do Criador
     st.markdown("---")
     st.markdown(
         """
@@ -232,9 +247,9 @@ if st.session_state.page == "Inicio":
 
     with col_info:
         st.info("""
-        ### 🔒 Privacidade de Dados
+        ### 🔒 Privacidade e Persistência
         * **Isolamento por E-mail:** Apenas você tem acesso aos seus perfis e ecolalias registradas.
-        * **Histórico Seguro:** Digite seu e-mail no menu lateral para acessar suas informações de qualquer dispositivo.
+        * **Dados Seguros:** O histórico fica permanentemente vinculado ao seu e-mail informado.
         """)
         st.success("""
         ### 🚀 Dica de Uso Rápido:
@@ -273,6 +288,7 @@ elif st.session_state.page == "Gestao":
                             "suporte": suporte
                         }
                         st.session_state.profiles_db.append(novo_perfil)
+                        atualizar_e_salvar()
                         st.success(f"Perfil de **{nome}** salvo com sucesso!")
                         st.rerun()
                     else:
@@ -283,7 +299,7 @@ elif st.session_state.page == "Gestao":
 
             if is_admin:
                 perfis_visiveis = st.session_state.profiles_db
-                st.caption("👑 Visão de Administrador: Exibindo todos los perfis registrados no sistema.")
+                st.caption("👑 Visão de Administrador: Exibindo todos os perfis registrados no sistema.")
             else:
                 perfis_visiveis = [p for p in st.session_state.profiles_db if p.get("email", "").lower() == current_user]
 
@@ -347,6 +363,7 @@ elif st.session_state.page == "Ecolalias":
                             "frase": frase,
                             "traducao": analise_texto
                         })
+                        atualizar_e_salvar()
                         st.success("Ecolalia analisada e salva no seu dicionário!")
                         st.rerun()
 
@@ -370,6 +387,7 @@ elif st.session_state.page == "Ecolalias":
                 with col_act:
                     if st.button("🗑️", key=f"del_eco_{idx}"):
                         st.session_state.ecolalias_db.remove(eco)
+                        atualizar_e_salvar()
                         st.rerun()
 
 # --- PÁGINA 4: REGISTRO SENSORIAL & AUTORREGULAÇÃO ---
@@ -428,6 +446,7 @@ elif st.session_state.page == "Sensorial":
                     "estrategia": estrategia_in if estrategia_in.strip() else "Nenhuma registrada"
                 })
                 st.session_state.sugestao_estrategia_temp = ""
+                atualizar_e_salvar()
                 st.success("Registro sensorial e estratégia salvos com sucesso!")
                 st.rerun()
             else:
