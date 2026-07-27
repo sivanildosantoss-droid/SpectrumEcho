@@ -439,17 +439,29 @@ elif st.session_state.page == "Dashboard":
 
         if st.button("📄 Gerar Relatório Completo em PDF", type="primary"):
             try:
-                # Estrutura os dados para o gerador de PDF
+                # Pega o primeiro perfil para a chave singular 'user_profile'
+                primary_profile = user_profs[0] if user_profs else {
+                    "email": st.session_state.user_email,
+                    "nome": "Usuário",
+                    "idade": "-",
+                    "tipo": "-",
+                    "suporte": "-"
+                }
+
+                # Estrutura completa cobrindo 'user_profile', 'profiles' e variações de chaves de ecolalias
                 report_payload = {
                     "user_email": st.session_state.user_email,
+                    "user_profile": primary_profile,
                     "profiles": user_profs,
                     "ecolalias": user_ecos,
-                    "sensorial": user_sens
+                    "ecolalia_records": user_ecos,
+                    "sensorial": user_sens,
+                    "sensory_records": user_sens
                 }
                 
                 json_str = json.dumps(report_payload, ensure_ascii=False)
                 
-                # Instancia garantindo o envio da string json obrigatória
+                # Instancia garantindo o envio da string json esperada
                 pdf_gen = SpectrumEchoPDFGenerator(json_str)
                 
                 # Executa a geração do PDF
