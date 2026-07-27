@@ -66,6 +66,9 @@ query_params = st.query_params
 if "user_email" not in st.session_state:
     st.session_state.user_email = query_params.get("user_email", "")
 
+if "sugestao_estrategia_temp" not in st.session_state:
+    st.session_state.sugestao_estrategia_temp = ""
+
 st.session_state.profiles_db = global_db["profiles"]
 st.session_state.ecolalias_db = global_db["ecolalias"]
 st.session_state.sensorial_db = global_db["sensorial"]
@@ -367,36 +370,72 @@ elif st.session_state.page == "Ecolalias":
                         st.session_state.ecolalias_db.remove(eco)
                         st.rerun()
 
-# --- PÁGINA 4: REGISTRO SENSORIAL ---
+# --- PÁGINA 4: REGISTRO SENSORIAL & AUTORREGULAÇÃO ---
 elif st.session_state.page == "Sensorial":
     st.title("📝 Registro Sensorial & Crises")
-    st.write("Acompanhe episódios de sobrecarga, autorregulação e gatilhos sensoriais.")
+    st.write("Acompanhe episódios de sobrecarga, autorregulação e obtenha orientações da IA para momentos de crise.")
 
     if not st.session_state.user_email:
         st.warning("⚠️ Digite seu e-mail no menu lateral para acessar os registros sensoriais.")
     else:
-        with st.form("form_sensorial"):
-            st.markdown("### Novo Registro Sensorial")
-            gatilho = st.text_input("Gatilho Identificado (ex: Som alto, Luz forte, Mudança na rotina):")
-            comportamento = st.text_area("Comportamento Observado:")
-            intensidade = st.select_slider("Nível de Sobrecarga/Intensidade:", options=["Leve", "Moderado", "Severo"])
-            estrategia = st.text_input("Estratégia de Autorregulação Utilizada (ex: Fone abafador, Espaço calmo):")
-            
-            btn_sensorial = st.form_submit_button("💾 Salvar Registro Sensorial", type="primary")
+        st.markdown("### Novo Registro Sensorial e de Crise")
+        
+        gatilho_in = st.text_input("Gatilho Identificado (ex: Som alto do interfone, Fim do tempo do celular):")
+        comportamento_in = st.text_area("Comportamento Observado (ex: Tampou os ouvidos, Fez birra e se jogou no chão):")
+        intensidade_in = st.select_slider("Nível de Sobrecarga/Intensidade:", options=["Leve", "Moderado", "Severo"])
 
-            if btn_sensorial:
-                if comportamento.strip():
-                    st.session_state.sensorial_db.append({
-                        "email": current_user,
-                        "gatilho": gatilho,
-                        "comportamento": comportamento,
-                        "intensidade": intensidade,
-                        "estrategia": estrategia
-                    })
-                    st.success("Registro sensorial salvo com sucesso!")
-                    st.rerun()
+        # Botão para pedir apoio à IA
+        col_ia_btn, col_blank = st.columns([1, 1])
+        with col_ia_btn:
+            if st.button("🤖 Sugerir Estratégia de Ação com IA", type="secondary", use_container_width=True):
+                if not comportamento_in.strip():
+                    st.warning("Descreva o comportamento observado para a IA sugerir uma estratégia apropriada.")
+                elif not client:
+                    st.error("Chave do Gemini não configurada.")
                 else:
-                    st.error("Por favor, descreva o comportamento observado.")
+                    with st.spinner("IA calculando melhor estratégia de acolhimento e regulação..."):
+                        prompt_sens = f"""Você é um terapeuta ocupacional e psicólogo especialista em Transtorno do Espectro Autista (TEA).
+                        Um pai/mãe está registrando um episódio de sobrecarga/crise do filho:
+                        - Gatilho: {gatilho_in}
+                        - Comportamento: {comportamento_in}
+                        - Intensidade: {intensidade_in}
+
+                        Forneça uma instrução direta, curta e extremamente prática para os pais aplicarem no momento ou após a crise para autorregulação. 
+                        Seja acolhedor e objetivo (no máximo 3 frases concisas).
+                        """
+                        try:
+                            resp = client.models.generate_content(
+                                model="gemini-2.0-flash",
+                                contents=prompt_sens
+                            )
+                            if resp and resp.text:
+                                st.session_state.sugestao_estrategia_temp = resp.text.strip()
+                                st.success("Estratégia sugerida pela IA carregada no campo abaixo!")
+                        except Exception as e:
+                            st.error(f"Não foi possível obter sugestão da IA: {e}")
+
+        # Campo da Estratégia (preenchido pela IA ou editável pelos pais)
+        estrategia_in = st.text_area(
+            "Estratégia de Autorregulação / Ação Adotada:",
+            value=st.session_state.sugestao_estrategia_temp,
+            placeholder="Ex: Reduzimos a luz, oferecemos fone abafador e aguardamos no canto de descompressão.",
+            help="Você pode usar a sugestão da IA acima ou escrever como agiu na situação."
+        )
+
+        if st.button("💾 Salvar Registro Sensorial", type="primary"):
+            if comportamento_in.strip():
+                st.session_state.sensorial_db.append({
+                    "email": current_user,
+                    "gatilho": gatilho_in,
+                    "comportamento": comportamento_in,
+                    "intensidade": intensidade_in,
+                    "estrategia": estrategia_in if estrategia_in.strip() else "Nenhuma registrada"
+                })
+                st.session_state.sugestao_estrategia_temp = "" # Limpa a sugestão temporária
+                st.success("Registro sensorial e estratégia salvos com sucesso!")
+                st.rerun()
+            else:
+                st.error("Por favor, descreva o comportamento observado antes de salvar.")
 
         st.markdown("---")
         st.markdown("### Histórico Sensorial")
@@ -407,13 +446,13 @@ elif st.session_state.page == "Sensorial":
             registros_visiveis = [s for s in st.session_state.sensorial_db if s.get("email", "").lower() == current_user]
 
         if not registros_visiveis:
-            st.info("Nenum registro sensorial anotado para esta conta.")
+            st.info("Nenhum registro sensorial anotado para esta conta.")
         else:
             for idx, s in enumerate(registros_visiveis):
                 dono_txt = f" ({s.get('email')})" if is_admin else ""
                 with st.expander(f"⚡ Gatilho: {s['gatilho']} | Intensidade: {s['intensidade']}{dono_txt}"):
                     st.write(f"**Comportamento:** {s['comportamento']}")
-                    st.write(f"**Estratégia Utilizada:** {s['estrategia']}")
+                    st.write(f"**Estratégia / Ação:** {s['estrategia']}")
 
 # --- PÁGINA 5: DASHBOARD & ANÁLISE ---
 elif st.session_state.page == "Dashboard":
