@@ -439,7 +439,7 @@ elif st.session_state.page == "Dashboard":
 
         if st.button("📄 Gerar Relatório Completo em PDF", type="primary"):
             try:
-                # Estrutura os dados no formato JSON esperado pelo gerador de PDF
+                # Estrutura os dados para o gerador de PDF
                 report_payload = {
                     "user_email": st.session_state.user_email,
                     "profiles": user_profs,
@@ -449,13 +449,16 @@ elif st.session_state.page == "Dashboard":
                 
                 json_str = json.dumps(report_payload, ensure_ascii=False)
                 
-                # Tenta instanciar passando o JSON diretamente ou usando métodos alternativos se a classe aceitar
-                try:
-                    pdf = SpectrumEchoPDFGenerator(json_str)
-                    filename = pdf.generate() if hasattr(pdf, 'generate') and callable(pdf.generate) and pdf.generate.__code__.co_argcount == 1 else pdf.generate(st.session_state.user_email, user_ecos)
-                except Exception:
-                    pdf = SpectrumEchoPDFGenerator()
-                    filename = pdf.generate(st.session_state.user_email, user_ecos)
+                # Instancia garantindo o envio da string json obrigatória
+                pdf_gen = SpectrumEchoPDFGenerator(json_str)
+                
+                # Executa a geração do PDF
+                if hasattr(pdf_gen, 'generate_pdf'):
+                    filename = pdf_gen.generate_pdf()
+                elif hasattr(pdf_gen, 'generate'):
+                    filename = pdf_gen.generate()
+                else:
+                    filename = "relatorio_spectrumecho.pdf"
 
                 with open(filename, "rb") as f:
                     st.download_button(
