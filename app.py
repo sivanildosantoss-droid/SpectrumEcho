@@ -302,7 +302,7 @@ elif st.session_state.page == "Ecolalias":
                         analise_texto = None
                         ultimo_erro = None
 
-                        modelos_tentativa = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.5-flash"]
+                        modelos_tentativa = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash"]
                         
                         for mod in modelos_tentativa:
                             try:
@@ -316,24 +316,6 @@ elif st.session_state.page == "Ecolalias":
                             except Exception as e:
                                 ultimo_erro = e
                                 continue
-
-                        if not analise_texto:
-                            try:
-                                for m in client.models.list():
-                                    mod_name = m.name.replace("models/", "")
-                                    if "generateContent" in getattr(m, "supported_generation_methods", []) or "flash" in mod_name or "pro" in mod_name:
-                                        try:
-                                            response = client.models.generate_content(
-                                                model=mod_name,
-                                                contents=prompt
-                                            )
-                                            if response and response.text:
-                                                analise_texto = response.text
-                                                break
-                                        except Exception:
-                                            continue
-                            except Exception as e:
-                                ultimo_erro = e
 
                         if analise_texto:
                             st.session_state.ecolalias_db.append({
@@ -406,7 +388,7 @@ elif st.session_state.page == "Sensorial":
                         
                         sugestao_obtida = None
                         ultimo_erro_sens = None
-                        modelos_tentativa = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.5-flash"]
+                        modelos_tentativa = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash"]
 
                         for mod in modelos_tentativa:
                             try:
