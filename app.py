@@ -283,25 +283,35 @@ elif st.session_state.page == "Ecolalias":
                     st.error("Chave de API do Gemini não configurada ou inválida.")
                 else:
                     with st.spinner("IA Especialista em TEA analisando o contexto comportamental..."):
-                        try:
-                            prompt = f"""Você é uma Inteligência Artificial especialista em Transtorno do Espectro Autista (TEA), Análise do Comportamento e Comunicação Alternativa.
-                            Analise a seguinte fala repetitiva/ecolalia dita por uma pessoa autista:
+                        prompt = f"""Você é uma Inteligência Artificial especialista em Transtorno do Espectro Autista (TEA), Análise do Comportamento e Comunicação Alternativa.
+                        Analise a seguinte fala repetitiva/ecolalia dita por uma pessoa autista:
 
-                            - Mídia/Contexto de Origem: {midia}
-                            - Frase Emitida: "{frase}"
+                        - Mídia/Contexto de Origem: {midia}
+                        - Frase Emitida: "{frase}"
 
-                            Forneça a análise estritamente no seguinte formato:
-                            🔍 **Tradução Comportamental:** (Explique o sentimento, necessidade de autorregulação ou intenção comunicativa)
-                            💡 **Ação Recomendada:** (Ação prática e acolhedora para o cuidador/terapeuta)
-                            """
-                            
-                            response = client.models.generate_content(
-                                model='gemini-1.5-flash',
-                                contents=prompt
-                            )
-                            
-                            analise_texto = response.text
+                        Forneça a análise estritamente no seguinte formato:
+                        🔍 **Tradução Comportamental:** (Explique o sentimento, necessidade de autorregulação ou intenção comunicativa)
+                        💡 **Ação Recomendada:** (Ação prática e acolhedora para o cuidador/terapeuta)
+                        """
+                        
+                        # Tenta múltiplos nomes de modelos para evitar 404 em diferentes regiões/contas
+                        modelos_tentativa = ["gemini-1.5-flash-latest", "gemini-1.5-flash", "gemini-flash-1.5", "gemini-pro"]
+                        analise_texto = None
+                        ultimo_erro = None
 
+                        for mod in modelos_tentativa:
+                            try:
+                                response = client.models.generate_content(
+                                    model=mod,
+                                    contents=prompt
+                                )
+                                analise_texto = response.text
+                                break
+                            except Exception as e:
+                                ultimo_erro = e
+                                continue
+
+                        if analise_texto:
                             st.session_state.ecolalias_db.append({
                                 "email": current_user,
                                 "perfil": perfil_selecionado,
@@ -311,9 +321,8 @@ elif st.session_state.page == "Ecolalias":
                             })
                             st.success("Ecolalia analisada e salva no seu dicionário!")
                             st.rerun()
-
-                        except Exception as e:
-                            st.error(f"Erro na chamada da API do Gemini: {e}")
+                        else:
+                            st.error(f"Erro na chamada da API do Gemini: {ultimo_erro}")
 
         st.markdown("---")
         st.markdown("### Dicionário de Ecolalias Salvas")
@@ -377,7 +386,7 @@ elif st.session_state.page == "Sensorial":
             registros_visiveis = [s for s in st.session_state.sensorial_db if s.get("email") == current_user]
 
         if not registros_visiveis:
-            st.info("Nenhum registro sensorial anotado para esta conta.")
+            st.info("Nenum registro sensorial anotado para esta conta.")
         else:
             for idx, s in enumerate(registros_visiveis):
                 dono_txt = f" ({s.get('email')})" if is_admin else ""
