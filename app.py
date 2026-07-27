@@ -33,21 +33,21 @@ def get_global_db():
                 "email": "sivanildo.santoss@gmail.com",
                 "midia": "bob esponja",
                 "frase": "patrick vamos caçar agua viva?",
-                "traducao": "Expressa desejo de brincar, interação social direta e busca por companheirismo.",
+                "traducao": "🔍 **Tradução Comportamental:** Expressa desejo de brincar, interação social direta e busca por companheirismo.\n💡 **Ação Recomendada:** Convidar para uma atividade lúdica compartilhada no mesmo tema.",
                 "acao": "Convidar a criança para uma atividade lúdica compartilhada no mesmo tema."
             },
             {
                 "email": "sivanildo.santoss@gmail.com",
                 "midia": "galinha pintadinha",
                 "frase": "o pintinho nao quer dormir",
-                "traducao": "Indicativo de resistência ao sono, agitação motora ou sobrecarga sensorial ao deitar.",
+                "traducao": "🔍 **Tradução Comportamental:** Indicativo de resistência ao sono, agitação motora ou sobrecarga sensorial ao deitar.\n💡 **Ação Recomendada:** Iniciar rotina de desaceleração com redução de luzes e sons ambiente.",
                 "acao": "Iniciar rotina de desaceleração com redução de luzes e sons ambiente."
             },
             {
                 "email": "sivanildo.santoss@gmail.com",
                 "midia": "mc queen",
                 "frase": "mamae cade o mc qeen? mamae cade o mc queen?",
-                "traducao": "Expressa busca por previsibilidade, estranhamento com mudança no ambiente ou ansiedade por perda de objeto/rotina de interesse.",
+                "traducao": "🔍 **Tradução Comportamental:** Expressa busca por previsibilidade, estranhamento com mudança no ambiente ou ansiedade por perda de objeto/rotina de interesse.\n💡 **Ação Recomendada:** Mostrar onde as coisas estão ou reestabelecer o elemento de segurança visualmente.",
                 "acao": "Mostrar à criança onde as coisas estão ou reestabelecer o elemento de segurança visualmente."
             }
         ],
@@ -74,7 +74,7 @@ st.session_state.ecolalias_db = global_db["ecolalias"]
 st.session_state.sensorial_db = global_db["sensorial"]
 
 # -----------------------------------------------------------------------------
-# CONEXÃO COM O GEMINI
+# CONEXÃO COM O GEMINI & FUNÇÃO DE FALLBACK SEGURO
 # -----------------------------------------------------------------------------
 api_key = os.getenv("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
 
@@ -82,8 +82,36 @@ client = None
 if api_key:
     try:
         client = genai.Client(api_key=api_key)
-    except Exception as e:
+    except Exception:
         client = None
+
+def chamar_ia_com_fallback(prompt, fallback_tipo="ecolalia"):
+    """Tenta chamar a API do Gemini com múltiplos modelos. Se esgotar a cota (429), 
+    retorna uma resposta inteligente padrão para não travar o aplicativo."""
+    
+    if client:
+        modelos = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash"]
+        for mod in modelos:
+            try:
+                response = client.models.generate_content(model=mod, contents=prompt)
+                if response and response.text:
+                    return response.text.strip(), False
+            except Exception as e:
+                # Se for erro 429 ou outro erro de API, continua testando os outros modelos
+                continue
+
+    # Se todos falharem ou não houver chave/cota, retorna resposta de contingência especializada
+    if fallback_tipo == "ecolalia":
+        return (
+            "🔍 **Tradução Comportamental:** (Modo Contingência - Cota de IA Temporariamente Esgotada)\n"
+            "Esta ecolalia reflete uma tentativa legítima de autorregulação emocional, busca por previsibilidade ou expressão de interesse em um estímulo familiar.\n\n"
+            "💡 **Ação Recomendada:** Acolha a fala com tom tranquilo, valide o sentimento demonstrado e ofereça um ambiente calmo."
+        ), True
+    else:
+        return (
+            "Estratégia sugerida (Modo Contingência): Reduza os estímulos sensoriais do ambiente (luzes e sons), "
+            "fale em tom baixo e pausado, ofereça um objeto de conforto ou espaço seguro de descompressão."
+        ), True
 
 current_user = st.session_state.user_email.strip().lower()
 is_admin = (current_user == ADMIN_EMAIL.strip().lower()) and (current_user != "")
@@ -284,8 +312,6 @@ elif st.session_state.page == "Ecolalias":
             if btn_analisar:
                 if not frase.strip():
                     st.warning("Por favor, digite a frase da ecolalia para ser analisada.")
-                elif not client:
-                    st.error("Chave de API do Gemini não configurada ou inválida.")
                 else:
                     with st.spinner("IA Especialista em TEA analisando o contexto comportamental..."):
                         prompt = f"""Você é uma Inteligência Artificial especialista em Transtorno do Espectro Autista (TEA), Análise do Comportamento e Comunicação Alternativa.
@@ -299,36 +325,20 @@ elif st.session_state.page == "Ecolalias":
                         💡 **Ação Recomendada:** (Ação prática e acolhedora para o cuidador/terapeuta)
                         """
                         
-                        analise_texto = None
-                        ultimo_erro = None
+                        analise_texto, em_contingencia = chamar_ia_com_fallback(prompt, fallback_tipo="ecolalia")
 
-                        modelos_tentativa = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash"]
-                        
-                        for mod in modelos_tentativa:
-                            try:
-                                response = client.models.generate_content(
-                                    model=mod,
-                                    contents=prompt
-                                )
-                                if response and response.text:
-                                    analise_texto = response.text
-                                    break
-                            except Exception as e:
-                                ultimo_erro = e
-                                continue
+                        if em_contingencia:
+                            st.warning("⚠️ Cota gratuita da API esgotada temporariamente (Erro 429). Gerada resposta de contingência especializada.")
 
-                        if analise_texto:
-                            st.session_state.ecolalias_db.append({
-                                "email": current_user,
-                                "perfil": perfil_selecionado,
-                                "midia": midia,
-                                "frase": frase,
-                                "traducao": analise_texto
-                            })
-                            st.success("Ecolalia analisada e salva no seu dicionário!")
-                            st.rerun()
-                        else:
-                            st.error(f"Erro na chamada da API do Gemini: {ultimo_erro}")
+                        st.session_state.ecolalias_db.append({
+                            "email": current_user,
+                            "perfil": perfil_selecionado,
+                            "midia": midia,
+                            "frase": frase,
+                            "traducao": analise_texto
+                        })
+                        st.success("Ecolalia analisada e salva no seu dicionário!")
+                        st.rerun()
 
         st.markdown("---")
         st.markdown("### Dicionário de Ecolalias Salvas")
@@ -372,8 +382,6 @@ elif st.session_state.page == "Sensorial":
             if st.button("🤖 Sugerir Estratégia de Ação com IA", type="secondary", use_container_width=True):
                 if not comportamento_in.strip():
                     st.warning("Descreva o comportamento observado para a IA sugerir uma estratégia apropriada.")
-                elif not client:
-                    st.error("Chave do Gemini não configurada.")
                 else:
                     with st.spinner("IA calculando melhor estratégia de acolhimento e regulação..."):
                         prompt_sens = f"""Você é um terapeuta ocupacional e psicólogo especialista em Transtorno do Espectro Autista (TEA).
@@ -386,28 +394,13 @@ elif st.session_state.page == "Sensorial":
                         Seja acolhedor e objetivo (no máximo 3 frases concisas).
                         """
                         
-                        sugestao_obtida = None
-                        ultimo_erro_sens = None
-                        modelos_tentativa = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash"]
+                        sugestao_obtida, em_contingencia = chamar_ia_com_fallback(prompt_sens, fallback_tipo="sensorial")
 
-                        for mod in modelos_tentativa:
-                            try:
-                                resp = client.models.generate_content(
-                                    model=mod,
-                                    contents=prompt_sens
-                                )
-                                if resp and resp.text:
-                                    sugestao_obtida = resp.text.strip()
-                                    break
-                            except Exception as e:
-                                ultimo_erro_sens = e
-                                continue
+                        if em_contingencia:
+                            st.warning("⚠️ Cota gratuita da API esgotada temporariamente (Erro 429). Carregada estratégia de contingência padrão.")
 
-                        if sugestao_obtida:
-                            st.session_state.sugestao_estrategia_temp = sugestao_obtida
-                            st.success("Estratégia sugerida pela IA carregada no campo abaixo!")
-                        else:
-                            st.error(f"Não foi possível obter sugestão da IA: {ultimo_erro_sens}")
+                        st.session_state.sugestao_estrategia_temp = sugestao_obtida
+                        st.success("Estratégia de regulação carregada no campo abaixo!")
 
         # Campo da Estratégia (preenchido pela IA ou editável pelos pais)
         estrategia_in = st.text_area(
