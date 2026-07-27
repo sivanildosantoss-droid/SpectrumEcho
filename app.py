@@ -100,27 +100,35 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # ÁREA DE AUTENTICAÇÃO E IDENTIFICAÇÃO
+    # ÁREA DE AUTENTICAÇÃO E IDENTIFICAÇÃO (LOGIN & LOGOUT)
     st.markdown("### 👤 Conta do Usuário")
-    email_input = st.text_input(
-        "Seu E-mail do Google:",
-        value=st.session_state.user_email,
-        placeholder="digite.seu.email@gmail.com",
-        help="Usado para isolar seus dados e histórico de relatórios com segurança."
-    )
     
-    if email_input != st.session_state.user_email:
-        st.session_state.user_email = email_input
-        st.query_params["user_email"] = email_input
-        st.rerun()
-
-    if not st.session_state.user_email:
-        st.warning("⚠️ Informe seu e-mail para carregar/salvar seus perfis de forma privativa.")
-    else:
+    if st.session_state.user_email:
+        st.markdown(f"**E-mail Ativo:**\n`{st.session_state.user_email}`")
+        
         if is_admin:
             st.info("👑 **Modo Administrador**\n(Acesso e gerenciamento global ativado)")
         else:
             st.success("🔒 **Sessão Protegida**\n(Seus dados estão visíveis apenas para você)")
+            
+        # Botão de Logout
+        if st.button("🚪 Sair / Logout", type="secondary", use_container_width=True):
+            st.session_state.user_email = ""
+            st.query_params.clear()
+            st.rerun()
+    else:
+        email_input = st.text_input(
+            "Seu E-mail do Google:",
+            value="",
+            placeholder="digite.seu.email@gmail.com",
+            help="Pressione Enter após digitar seu e-mail para conectar."
+        )
+        if email_input:
+            st.session_state.user_email = email_input.strip()
+            st.query_params["user_email"] = email_input.strip()
+            st.rerun()
+            
+        st.warning("⚠️ Informe seu e-mail para carregar/salvar seus perfis de forma privativa.")
 
     st.markdown("---")
 
@@ -186,7 +194,7 @@ if st.session_state.page == "Inicio":
         """)
         st.success("""
         ### 🚀 Dica de Uso Rápido:
-        1. Digite seu e-mail no menu lateral.
+        1. Digite seu e-mail no menu lateral e pressione Enter.
         2. Acesse **Gestão de Perfis** para criar o cadastro.
         3. Vá até a **Biblioteca de Ecolalias** e faça sua primeira consulta com a IA!
         """)
@@ -288,7 +296,7 @@ elif st.session_state.page == "Ecolalias":
                             """
                             
                             response = client.models.generate_content(
-                                model='gemini-2.5-flash',
+                                model='gemini-1.5-flash',
                                 contents=prompt
                             )
                             
