@@ -407,7 +407,7 @@ elif st.session_state.page == "Sensorial":
             registros_visiveis = [s for s in st.session_state.sensorial_db if s.get("email", "").lower() == current_user]
 
         if not registros_visiveis:
-            st.info("Nenhum registro sensorial anotado para esta conta.")
+            st.info("Nenum registro sensorial anotado para esta conta.")
         else:
             for idx, s in enumerate(registros_visiveis):
                 dono_txt = f" ({s.get('email')})" if is_admin else ""
@@ -439,89 +439,65 @@ elif st.session_state.page == "Dashboard":
 
         if st.button("📄 Gerar Relatório Completo em PDF", type="primary"):
             try:
-                # Perfil principal selecionado
+                # 1. Perfil Principal
                 primary_profile = user_profs[0] if user_profs else {
                     "email": st.session_state.user_email,
                     "nome": "Usuário",
                     "idade": "-",
-                    "tipo": "-",
+                    "tipo": "Criança/Adolescente",
                     "suporte": "-"
                 }
 
                 p_nome = primary_profile.get("nome", "Usuário")
-                p_idade = str(primary_profile.get("idade", "-"))
-                p_suporte = primary_profile.get("suporte", "-")
+                p_tipo = primary_profile.get("tipo", "Criança/Adolescente")
 
-                # Formata a lista de perfis injetando chaves em PT/EN e configurações globais
-                formatted_profiles = []
-                for prof in (user_profs or [primary_profile]):
-                    prof_copy = dict(prof)
-                    prof_copy["name"] = prof.get("nome", "Usuário")
-                    prof_copy["patient_name"] = prof.get("nome", "Usuário")
-                    prof_copy["age"] = str(prof.get("idade", "-"))
-                    prof_copy["support_level"] = prof.get("suporte", "-")
-                    prof_copy["mode"] = "standard"
-                    formatted_profiles.append(prof_copy)
-
-                # Formata ecolalias garantindo modo e nome de campos
-                formatted_ecolalias = []
+                # 2. Formatação dos logs conforme a classe SpectrumEchoPDFGenerator espera
+                sensory_logs = []
                 for eco in user_ecos:
-                    eco_copy = dict(eco)
-                    eco_copy["mode"] = "standard"
-                    eco_copy["phrase"] = eco.get("frase", "")
-                    eco_copy["translation"] = eco.get("traducao", "")
-                    formatted_ecolalias.append(eco_copy)
+                    sensory_logs.append({
+                        "stress_level_0_to_100": 50,
+                        "triggers": ["Comunicação / Ecolalia"],
+                        "behavioral_manifestation": {
+                            "echolalia_phrase": eco.get("frase", "Nenhuma registrada"),
+                            "media_source": eco.get("midia", "Não informada")
+                        }
+                    })
 
-                # Formata registros sensoriais garantindo modo
-                formatted_sensorial = []
                 for sens in user_sens:
-                    sens_copy = dict(sens)
-                    sens_copy["mode"] = "standard"
-                    formatted_sensorial.append(sens_copy)
+                    intensidade_map = {"Leve": 30, "Moderado": 60, "Severo": 90}
+                    nivel_estresse = intensidade_map.get(sens.get("intensidade"), 50)
+                    
+                    sensory_logs.append({
+                        "stress_level_0_to_100": nivel_estresse,
+                        "triggers": [sens.get("gatilho", "Não informado")],
+                        "behavioral_manifestation": {
+                            "echolalia_phrase": sens.get("comportamento", "Comportamento observado"),
+                            "media_source": f"Estratégia: {sens.get('estrategia', 'Nenhuma')}"
+                        }
+                    })
 
-                # Payload hiper-completo cobrindo a chave 'mode' e todas as variações conhecidas
+                # 3. Payload exato esperado pelo report_generator.py
                 report_payload = {
-                    "mode": "standard",
-                    "pdf_mode": "standard",
-                    "export_mode": "full",
-                    "type": "report",
-                    "name": p_nome,
-                    "patient_id": st.session_state.user_email,
-                    "patient_name": p_nome,
-                    "patient_age": p_idade,
-                    "support_level": p_suporte,
-                    "user_email": st.session_state.user_email,
                     "user_profile": {
-                        "mode": "standard",
+                        "patient_id": st.session_state.user_email if st.session_state.user_email else "paciente_anonimo",
                         "name": p_nome,
-                        "patient_id": st.session_state.user_email,
-                        "patient_name": p_nome,
-                        "patient_age": p_idade,
-                        "support_level": p_suporte,
-                        "nome": p_nome,
-                        "idade": p_idade,
-                        "suporte": p_suporte,
-                        "email": st.session_state.user_email
+                        "mode": "Criança" if "Criança" in str(p_tipo) else "Adulto"
                     },
-                    "profiles": formatted_profiles,
-                    "ecolalias": formatted_ecolalias,
-                    "ecolalia_records": formatted_ecolalias,
-                    "sensorial": formatted_sensorial,
-                    "sensory_records": formatted_sensorial
+                    "sensory_and_emotional_logs": sensory_logs,
+                    "adult_masking_metrics": {
+                        "social_drain_score": 40,
+                        "reactivity_pico_0_100": 50,
+                        "isolation_needed_minutes": 30
+                    }
                 }
                 
                 json_str = json.dumps(report_payload, ensure_ascii=False)
                 
-                # Instancia enviando a string json esperada
+                # Instancia e gera o PDF chamando .generate()
                 pdf_gen = SpectrumEchoPDFGenerator(json_str)
+                pdf_gen.generate()
                 
-                # Executa a geração do PDF
-                if hasattr(pdf_gen, 'generate_pdf'):
-                    filename = pdf_gen.generate_pdf()
-                elif hasattr(pdf_gen, 'generate'):
-                    filename = pdf_gen.generate()
-                else:
-                    filename = "relatorio_spectrumecho.pdf"
+                filename = "relatorio_spectrumecho.pdf"
 
                 with open(filename, "rb") as f:
                     st.download_button(
