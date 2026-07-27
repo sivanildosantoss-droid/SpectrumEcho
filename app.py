@@ -302,7 +302,7 @@ elif st.session_state.page == "Ecolalias":
                         analise_texto = None
                         ultimo_erro = None
 
-                        modelos_tentativa = ["gemini-2.0-flash", "gemini-1.5-flash-8b", "gemini-2.5-flash"]
+                        modelos_tentativa = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.5-flash"]
                         
                         for mod in modelos_tentativa:
                             try:
@@ -403,16 +403,29 @@ elif st.session_state.page == "Sensorial":
                         Forneça uma instrução direta, curta e extremamente prática para os pais aplicarem no momento ou após a crise para autorregulação. 
                         Seja acolhedor e objetivo (no máximo 3 frases concisas).
                         """
-                        try:
-                            resp = client.models.generate_content(
-                                model="gemini-2.0-flash",
-                                contents=prompt_sens
-                            )
-                            if resp and resp.text:
-                                st.session_state.sugestao_estrategia_temp = resp.text.strip()
-                                st.success("Estratégia sugerida pela IA carregada no campo abaixo!")
-                        except Exception as e:
-                            st.error(f"Não foi possível obter sugestão da IA: {e}")
+                        
+                        sugestao_obtida = None
+                        ultimo_erro_sens = None
+                        modelos_tentativa = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.5-flash"]
+
+                        for mod in modelos_tentativa:
+                            try:
+                                resp = client.models.generate_content(
+                                    model=mod,
+                                    contents=prompt_sens
+                                )
+                                if resp and resp.text:
+                                    sugestao_obtida = resp.text.strip()
+                                    break
+                            except Exception as e:
+                                ultimo_erro_sens = e
+                                continue
+
+                        if sugestao_obtida:
+                            st.session_state.sugestao_estrategia_temp = sugestao_obtida
+                            st.success("Estratégia sugerida pela IA carregada no campo abaixo!")
+                        else:
+                            st.error(f"Não foi possível obter sugestão da IA: {ultimo_erro_sens}")
 
         # Campo da Estratégia (preenchido pela IA ou editável pelos pais)
         estrategia_in = st.text_area(
