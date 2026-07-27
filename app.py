@@ -452,14 +452,26 @@ elif st.session_state.page == "Dashboard":
                 p_idade = str(primary_profile.get("idade", "-"))
                 p_suporte = primary_profile.get("suporte", "-")
 
-                # Payload blindado mapeando todas as variações conhecidas do gerador de PDF
+                # Formata a lista de perfis injetando chaves em PT e EN para evitar KeyError interno
+                formatted_profiles = []
+                for prof in (user_profs or [primary_profile]):
+                    prof_copy = dict(prof)
+                    prof_copy["name"] = prof.get("nome", "Usuário")
+                    prof_copy["patient_name"] = prof.get("nome", "Usuário")
+                    prof_copy["age"] = str(prof.get("idade", "-"))
+                    prof_copy["support_level"] = prof.get("suporte", "-")
+                    formatted_profiles.append(prof_copy)
+
+                # Payload hiper-compatível (cobre todos os padrões de chave conhecidos)
                 report_payload = {
+                    "name": p_nome,
                     "patient_id": st.session_state.user_email,
                     "patient_name": p_nome,
                     "patient_age": p_idade,
                     "support_level": p_suporte,
                     "user_email": st.session_state.user_email,
                     "user_profile": {
+                        "name": p_nome,
                         "patient_id": st.session_state.user_email,
                         "patient_name": p_nome,
                         "patient_age": p_idade,
@@ -469,7 +481,7 @@ elif st.session_state.page == "Dashboard":
                         "suporte": p_suporte,
                         "email": st.session_state.user_email
                     },
-                    "profiles": user_profs,
+                    "profiles": formatted_profiles,
                     "ecolalias": user_ecos,
                     "ecolalia_records": user_ecos,
                     "sensorial": user_sens,
