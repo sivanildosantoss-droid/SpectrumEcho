@@ -1,4 +1,5 @@
 import os
+import json
 import streamlit as st
 import pandas as pd
 from google import genai
@@ -61,12 +62,10 @@ global_db = get_global_db()
 if "page" not in st.session_state:
     st.session_state.page = "Inicio"
 
-# Recupera email persistente pela URL (sobrevive ao F5)
 query_params = st.query_params
 if "user_email" not in st.session_state:
     st.session_state.user_email = query_params.get("user_email", "")
 
-# Vincula o banco de dados da sessão ao banco global persistente
 st.session_state.profiles_db = global_db["profiles"]
 st.session_state.ecolalias_db = global_db["ecolalias"]
 st.session_state.sensorial_db = global_db["sensorial"]
@@ -83,7 +82,6 @@ if api_key:
     except Exception as e:
         client = None
 
-# Verificação se o usuário atual é o Administrador
 current_user = st.session_state.user_email.strip().lower()
 is_admin = (current_user == ADMIN_EMAIL.strip().lower()) and (current_user != "")
 
@@ -94,14 +92,12 @@ with st.sidebar:
     st.markdown("# 🧩 SpectrumEcho")
     st.caption("Plataforma Universal de Governança Sensorial")
     
-    # Botão de retorno rápido para a Home
     if st.button("🏠 Ir para Início / Apresentação", use_container_width=True):
         st.session_state.page = "Inicio"
         st.rerun()
 
     st.markdown("---")
 
-    # Status da IA
     if client:
         st.success("Gemini AI: Conectado 🤖")
     else:
@@ -109,7 +105,6 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # ÁREA DE AUTENTICAÇÃO E IDENTIFICAÇÃO (LOGIN & LOGOUT)
     st.markdown("### 👤 Conta do Usuário")
     
     if st.session_state.user_email:
@@ -120,7 +115,6 @@ with st.sidebar:
         else:
             st.success("🔒 **Sessão Protegida**\n(Seus dados estão visíveis apenas para você)")
             
-        # Botão de Logout
         if st.button("🚪 Sair / Logout", type="secondary", use_container_width=True):
             st.session_state.user_email = ""
             st.query_params.clear()
@@ -142,7 +136,6 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # MENU DE NAVEGAÇÃO
     st.markdown("### Navegação:")
     
     opcoes_nav = {
@@ -247,7 +240,6 @@ elif st.session_state.page == "Gestao":
         with col_list:
             st.markdown("### Perfis Cadastrados")
 
-            # Filtro de Privacidade: Admin vê todos, usuário comum vê apenas os dele
             if is_admin:
                 perfis_visiveis = st.session_state.profiles_db
                 st.caption("👑 Visão de Administrador: Exibindo todos os perfis registrados no sistema.")
@@ -271,7 +263,6 @@ elif st.session_state.page == "Ecolalias":
     if not st.session_state.user_email:
         st.warning("⚠️ Digite seu e-mail no menu lateral para acessar a biblioteca e salvar traduções.")
     else:
-        # Seleção de Perfil para a Ecolalia
         perfis_usuario = [p['nome'] for p in st.session_state.profiles_db if is_admin or p.get("email", "").lower() == current_user]
         if perfis_usuario:
             perfil_selecionado = st.selectbox("Selecione o Perfil:", perfis_usuario)
@@ -434,6 +425,7 @@ elif st.session_state.page == "Dashboard":
     else:
         user_ecos = [e for e in st.session_state.ecolalias_db if is_admin or e.get("email", "").lower() == current_user]
         user_sens = [s for s in st.session_state.sensorial_db if is_admin or s.get("email", "").lower() == current_user]
+        user_profs = [p for p in st.session_state.profiles_db if is_admin or p.get("email", "").lower() == current_user]
 
         col_m1, col_m2 = st.columns(2)
         with col_m1:
@@ -447,8 +439,24 @@ elif st.session_state.page == "Dashboard":
 
         if st.button("📄 Gerar Relatório Completo em PDF", type="primary"):
             try:
-                pdf = SpectrumEchoPDFGenerator()
-                filename = pdf.generate(st.session_state.user_email, user_ecos)
+                # Estrutura os dados no formato JSON esperado pelo gerador de PDF
+                report_payload = {
+                    "user_email": st.session_state.user_email,
+                    "profiles": user_profs,
+                    "ecolalias": user_ecos,
+                    "sensorial": user_sens
+                }
+                
+                json_str = json.dumps(report_payload, ensure_ascii=False)
+                
+                # Tenta instanciar passando o JSON diretamente ou usando métodos alternativos se a classe aceitar
+                try:
+                    pdf = SpectrumEchoPDFGenerator(json_str)
+                    filename = pdf.generate() if hasattr(pdf, 'generate') and callable(pdf.generate) and pdf.generate.__code__.co_argcount == 1 else pdf.generate(st.session_state.user_email, user_ecos)
+                except Exception:
+                    pdf = SpectrumEchoPDFGenerator()
+                    filename = pdf.generate(st.session_state.user_email, user_ecos)
+
                 with open(filename, "rb") as f:
                     st.download_button(
                         label="⬇️ Baixar Relatório em PDF",
