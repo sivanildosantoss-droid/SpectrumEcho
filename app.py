@@ -18,49 +18,58 @@ st.set_page_config(
 ADMIN_EMAIL = st.secrets.get("admin", {}).get("email", "sivanildo.santoss@gmail.com")
 
 # -----------------------------------------------------------------------------
+# ARMAZENAMENTO PERSISTENTE ENTRE SESSÕES (CACHE GLOBAL DE DADOS)
+# -----------------------------------------------------------------------------
+@st.cache_resource
+def get_global_db():
+    return {
+        "profiles": [
+            {"email": "sivanildo.santoss@gmail.com", "nome": "Murilo Ferreira", "idade": 8, "tipo": "Criança/Adolescente", "suporte": "Nível 2 (Moderado)"},
+            {"email": "sivanildo.santoss@gmail.com", "nome": "Sivanildo Santos", "idade": 40, "tipo": "Adulto", "suporte": "Nível 1 (Leve)"}
+        ],
+        "ecolalias": [
+            {
+                "email": "sivanildo.santoss@gmail.com",
+                "midia": "bob esponja",
+                "frase": "patrick vamos caçar agua viva?",
+                "traducao": "Expressa desejo de brincar, interação social direta e busca por companheirismo.",
+                "acao": "Convidar a criança para uma atividade lúdica compartilhada no mesmo tema."
+            },
+            {
+                "email": "sivanildo.santoss@gmail.com",
+                "midia": "galinha pintadinha",
+                "frase": "o pintinho nao quer dormir",
+                "traducao": "Indicativo de resistência ao sono, agitação motora ou sobrecarga sensorial ao deitar.",
+                "acao": "Iniciar rotina de desaceleração com redução de luzes e sons ambiente."
+            },
+            {
+                "email": "sivanildo.santoss@gmail.com",
+                "midia": "mc queen",
+                "frase": "mamae cade o mc qeen? mamae cade o mc queen?",
+                "traducao": "Expressa busca por previsibilidade, estranhamento com mudança no ambiente ou ansiedade por perda de objeto/rotina de interesse.",
+                "acao": "Mostrar à criança onde as coisas estão ou reestabelecer o elemento de segurança visualmente."
+            }
+        ],
+        "sensorial": []
+    }
+
+global_db = get_global_db()
+
+# -----------------------------------------------------------------------------
 # INICIALIZAÇÃO DE ESTADO (SESSION STATE)
 # -----------------------------------------------------------------------------
 if "page" not in st.session_state:
     st.session_state.page = "Inicio"
 
+# Recupera email persistente pela URL (sobrevive ao F5)
+query_params = st.query_params
 if "user_email" not in st.session_state:
-    query_params = st.query_params
     st.session_state.user_email = query_params.get("user_email", "")
 
-# Banco de dados simulado em SessionState com vinculação por e-mail (Isolamento de Dados)
-if "profiles_db" not in st.session_state:
-    st.session_state.profiles_db = [
-        {"email": "sivanildo.santoss@gmail.com", "nome": "Murilo Ferreira", "idade": 8, "tipo": "Criança/Adolescente", "suporte": "Nível 2 (Moderado)"},
-        {"email": "sivanildo.santoss@gmail.com", "nome": "Sivanildo Santos", "idade": 40, "tipo": "Adulto", "suporte": "Nível 1 (Leve)"}
-    ]
-
-if "ecolalias_db" not in st.session_state:
-    st.session_state.ecolalias_db = [
-        {
-            "email": "sivanildo.santoss@gmail.com",
-            "midia": "bob esponja",
-            "frase": "patrick vamos caçar agua viva?",
-            "traducao": "Expressa desejo de brincar, interação social direta e busca por companheirismo.",
-            "acao": "Convidar a criança para uma atividade lúdica compartilhada no mesmo tema."
-        },
-        {
-            "email": "sivanildo.santoss@gmail.com",
-            "midia": "galinha pintadinha",
-            "frase": "o pintinho nao quer dormir",
-            "traducao": "Indicativo de resistência ao sono, agitação motora ou sobrecarga sensorial ao deitar.",
-            "acao": "Iniciar rotina de desaceleração com redução de luzes e sons ambiente."
-        },
-        {
-            "email": "sivanildo.santoss@gmail.com",
-            "midia": "mc queen",
-            "frase": "mamae cade o mc qeen? mamae cade o mc queen?",
-            "traducao": "Expressa busca por previsibilidade, estranhamento com mudança no ambiente ou ansiedade por perda de objeto/rotina de interesse.",
-            "acao": "Mostrar à criança onde as coisas estão ou reestabelecer o elemento de segurança visualmente."
-        }
-    ]
-
-if "sensorial_db" not in st.session_state:
-    st.session_state.sensorial_db = []
+# Vincula o banco de dados da sessão ao banco global persistente
+st.session_state.profiles_db = global_db["profiles"]
+st.session_state.ecolalias_db = global_db["ecolalias"]
+st.session_state.sensorial_db = global_db["sensorial"]
 
 # -----------------------------------------------------------------------------
 # CONEXÃO COM O GEMINI
@@ -124,8 +133,9 @@ with st.sidebar:
             help="Pressione Enter após digitar seu e-mail para conectar."
         )
         if email_input:
-            st.session_state.user_email = email_input.strip()
-            st.query_params["user_email"] = email_input.strip()
+            user_e = email_input.strip().lower()
+            st.session_state.user_email = user_e
+            st.query_params["user_email"] = user_e
             st.rerun()
             
         st.warning("⚠️ Informe seu e-mail para carregar/salvar seus perfis de forma privativa.")
@@ -221,13 +231,14 @@ elif st.session_state.page == "Gestao":
 
                 if btn_salvar:
                     if nome.strip():
-                        st.session_state.profiles_db.append({
+                        novo_perfil = {
                             "email": current_user,
                             "nome": nome.strip(),
                             "idade": idade,
                             "tipo": tipo,
                             "suporte": suporte
-                        })
+                        }
+                        st.session_state.profiles_db.append(novo_perfil)
                         st.success(f"Perfil de **{nome}** salvo com sucesso!")
                         st.rerun()
                     else:
@@ -241,7 +252,7 @@ elif st.session_state.page == "Gestao":
                 perfis_visiveis = st.session_state.profiles_db
                 st.caption("👑 Visão de Administrador: Exibindo todos os perfis registrados no sistema.")
             else:
-                perfis_visiveis = [p for p in st.session_state.profiles_db if p.get("email") == current_user]
+                perfis_visiveis = [p for p in st.session_state.profiles_db if p.get("email", "").lower() == current_user]
 
             if not perfis_visiveis:
                 st.info("Nenhum perfil cadastrado para a sua conta até o momento.")
@@ -261,7 +272,7 @@ elif st.session_state.page == "Ecolalias":
         st.warning("⚠️ Digite seu e-mail no menu lateral para acessar a biblioteca e salvar traduções.")
     else:
         # Seleção de Perfil para a Ecolalia
-        perfis_usuario = [p['nome'] for p in st.session_state.profiles_db if is_admin or p.get("email") == current_user]
+        perfis_usuario = [p['nome'] for p in st.session_state.profiles_db if is_admin or p.get("email", "").lower() == current_user]
         if perfis_usuario:
             perfil_selecionado = st.selectbox("Selecione o Perfil:", perfis_usuario)
         else:
@@ -297,10 +308,8 @@ elif st.session_state.page == "Ecolalias":
                         analise_texto = None
                         ultimo_erro = None
 
-                        # Lista prioritária de nomes aceitos na API oficial
                         modelos_tentativa = ["gemini-2.0-flash", "gemini-1.5-flash-8b", "gemini-2.5-flash"]
                         
-                        # Tenta buscar os modelos disponíveis na própria chave do usuário se os estáticos falharem
                         for mod in modelos_tentativa:
                             try:
                                 response = client.models.generate_content(
@@ -314,7 +323,6 @@ elif st.session_state.page == "Ecolalias":
                                 ultimo_erro = e
                                 continue
 
-                        # Se ainda não funcionou, faz busca dinâmica nos modelos autorizados da chave
                         if not analise_texto:
                             try:
                                 for m in client.models.list():
@@ -352,7 +360,7 @@ elif st.session_state.page == "Ecolalias":
         if is_admin:
             ecolalias_visiveis = st.session_state.ecolalias_db
         else:
-            ecolalias_visiveis = [e for e in st.session_state.ecolalias_db if e.get("email") == current_user]
+            ecolalias_visiveis = [e for e in st.session_state.ecolalias_db if e.get("email", "").lower() == current_user]
 
         if not ecolalias_visiveis:
             st.info("Nenhuma ecolalia cadastrada para a sua conta ainda.")
@@ -405,7 +413,7 @@ elif st.session_state.page == "Sensorial":
         if is_admin:
             registros_visiveis = st.session_state.sensorial_db
         else:
-            registros_visiveis = [s for s in st.session_state.sensorial_db if s.get("email") == current_user]
+            registros_visiveis = [s for s in st.session_state.sensorial_db if s.get("email", "").lower() == current_user]
 
         if not registros_visiveis:
             st.info("Nenhum registro sensorial anotado para esta conta.")
@@ -424,9 +432,8 @@ elif st.session_state.page == "Dashboard":
     if not st.session_state.user_email:
         st.warning("⚠️ Digite seu e-mail no menu lateral para gerar seus relatórios.")
     else:
-        # Filtrar dados do usuário atual
-        user_ecos = [e for e in st.session_state.ecolalias_db if is_admin or e.get("email") == current_user]
-        user_sens = [s for s in st.session_state.sensorial_db if is_admin or s.get("email") == current_user]
+        user_ecos = [e for e in st.session_state.ecolalias_db if is_admin or e.get("email", "").lower() == current_user]
+        user_sens = [s for s in st.session_state.sensorial_db if is_admin or s.get("email", "").lower() == current_user]
 
         col_m1, col_m2 = st.columns(2)
         with col_m1:
