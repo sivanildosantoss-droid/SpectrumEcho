@@ -2,7 +2,7 @@ import streamlit as st
 import sqlite3
 import pandas as pd
 from datetime import datetime
-import google.generativeai as genai
+from google import genai
 
 # ---------------------------------------------------------
 # CONFIGURAÇÃO DA PÁGINA
@@ -189,7 +189,7 @@ def get_all_global_profiles():
     return df
 
 # ---------------------------------------------------------
-# FUNÇÃO DA IA (GEMINI) - USANDO MODELOS COMPATÍVEIS
+# FUNÇÃO DA IA (GEMINI - NOVA SDK OFICIAL GOOGLE)
 # ---------------------------------------------------------
 def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age):
     clean_key = api_key.strip() if api_key else ""
@@ -197,7 +197,7 @@ def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age)
         return "Erro: Nenhuma API Key do Gemini foi informada ou configurada."
 
     try:
-        genai.configure(api_key=clean_key)
+        client = genai.Client(api_key=clean_key)
         
         prompt = f"""
         Você é um especialista em Análise do Comportamento Aplicada (ABA), Terapia Ocupacional e desenvolvimento infantil no Transtorno do Espectro Autista (TEA).
@@ -215,23 +215,17 @@ def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age)
         Responda em português, usando tópicos claros e linguagem acessível para famílias.
         """
         
-        candidate_models = ["gemini-pro", "gemini-1.5-flash-latest", "gemini-1.5-pro-latest"]
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+        )
         
-        last_error = ""
-        for model_name in candidate_models:
-            try:
-                model = genai.GenerativeModel(model_name)
-                response = model.generate_content(prompt)
-                if response and response.text:
-                    return response.text
-            except Exception as err:
-                last_error = str(err)
-                continue
-
-        return f"Erro na chamada da API do Gemini: {last_error}"
+        if response and response.text:
+            return response.text
+        return "Erro: A API respondeu com um conteúdo vazio."
 
     except Exception as e:
-        return f"Erro ao configurar o Gemini: {str(e)}"
+        return f"Erro na chamada da API do Gemini: {str(e)}"
 
 # ---------------------------------------------------------
 # GERENCIAMENTO DE SESSÃO E CHAVE DE API
