@@ -189,7 +189,7 @@ def get_all_global_profiles():
     return df
 
 # ---------------------------------------------------------
-# FUNÇÃO DA IA (GEMINI) - USANDO GOOGLE-GENERATIVEAI ESTÁVEL
+# FUNÇÃO DA IA (GEMINI) - COM DIAGNÓSTICO DETALHADO DE ERRO
 # ---------------------------------------------------------
 def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age):
     clean_key = api_key.strip() if api_key else ""
@@ -215,20 +215,23 @@ def translate_echolalia_with_ai(api_key, phrase, media_title, profile_name, age)
         Responda em português, usando tópicos claros e linguagem acessível para famílias.
         """
         
-        # Tenta o modelo flash moderno e cai para pro se necessário
-        for model_name in ["gemini-1.5-flash", "gemini-pro", "gemini-1.5-pro"]:
+        candidate_models = ["gemini-1.5-flash", "models/gemini-1.5-flash", "gemini-1.5-pro", "models/gemini-1.5-pro"]
+        
+        last_error = ""
+        for model_name in candidate_models:
             try:
                 model = genai.GenerativeModel(model_name)
                 response = model.generate_content(prompt)
                 if response and response.text:
                     return response.text
-            except Exception:
+            except Exception as err:
+                last_error = str(err)
                 continue
 
-        return "Erro: Nenhum modelo Gemini respondeu. Verifique sua chave API."
+        return f"Erro na chamada da API do Gemini: {last_error}"
 
     except Exception as e:
-        return f"Erro na API do Gemini: {str(e)}"
+        return f"Erro ao configurar o Gemini: {str(e)}"
 
 # ---------------------------------------------------------
 # GERENCIAMENTO DE SESSÃO E CHAVE DE API
