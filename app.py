@@ -3,7 +3,7 @@ import json
 import time
 import streamlit as st
 import pandas as pd
-import google.generativeai as genai
+from google import genai
 from report_generator import SpectrumEchoPDFGenerator
 
 # -----------------------------------------------------------------------------
@@ -89,7 +89,7 @@ def atualizar_e_salvar():
     salvar_banco(global_db)
 
 # -----------------------------------------------------------------------------
-# CONFIGURAÇÃO CLÁSSICA E BLINDADA DA API DO GEMINI
+# CONEXÃO COM O GEMINI (SDK MODERNO google-genai)
 # -----------------------------------------------------------------------------
 api_key = ""
 try:
@@ -101,29 +101,25 @@ except Exception:
 if not api_key:
     api_key = os.getenv("GEMINI_API_KEY", "")
 
-gemini_configurado = False
+client = None
 if api_key:
     try:
-        genai.configure(api_key=api_key)
-        gemini_configurado = True
+        client = genai.Client(api_key=api_key)
     except Exception:
-        gemini_configurado = False
+        client = None
 
 def chamar_ia_com_fallback(prompt, fallback_tipo="ecolalia"):
-    if gemini_configurado:
-        modelos = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-pro"]
-        for nome_modelo in modelos:
+    if client:
+        modelos = ["gemini-1.5-flash", "gemini-2.0-flash"]
+        for mod in modelos:
             try:
-                model = genai.GenerativeModel(nome_modelo)
-                response = model.generate_content(prompt)
-                if response and response.text:
+                response = client.models.generate_content(model=mod, contents=prompt)
+                if response and hasattr(response, "text") and response.text:
                     return response.text.strip(), False
-            except Exception as e:
-                # Se houver qualquer erro na chamada do modelo, tenta o próximo da lista
+            except Exception:
                 time.sleep(0.2)
                 continue
 
-    # Modo Contingência absoluto apenas se todos os modelos falharem
     if fallback_tipo == "ecolalia":
         return (
             "🔍 **Tradução Comportamental:** (Modo Contingência - Indisponibilidade Temporária da API)\n"
@@ -152,7 +148,7 @@ with st.sidebar:
 
     st.markdown("---")
 
-    if gemini_configurado:
+    if client:
         st.success("Gemini AI: Conectado 🤖")
     else:
         st.error("Gemini AI: Não Configurado ⚠️")
