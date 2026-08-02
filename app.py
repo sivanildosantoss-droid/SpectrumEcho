@@ -110,16 +110,21 @@ if api_key:
 
 def chamar_ia_com_fallback(prompt, fallback_tipo="ecolalia"):
     if client:
-        modelos = ["gemini-1.5-flash", "gemini-2.0-flash"]
+        # Usando os nomes de modelos padrão oficiais da SDK google-genai
+        modelos = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"]
         for mod in modelos:
             try:
-                response = client.models.generate_content(model=mod, contents=prompt)
+                response = client.models.generate_content(
+                    model=mod,
+                    contents=prompt
+                )
                 if response and hasattr(response, "text") and response.text:
                     return response.text.strip(), False
-            except Exception:
+            except Exception as e:
                 time.sleep(0.2)
                 continue
 
+    # Fallback caso a API falhe ou não esteja configurada
     if fallback_tipo == "ecolalia":
         return (
             "🔍 **Tradução Comportamental:** (Modo Contingência - Indisponibilidade Temporária da API)\n"
@@ -177,7 +182,7 @@ with st.sidebar:
         st.warning("⚠️ Informe seu e-mail para carregar/salvar seus perfis.")
 
     st.markdown("---")
-    st.markdown("### Navegação:")
+    st.markdown("### Navegação Principal:")
     
     opcoes_nav = {
         "Inicio": "🏠 Página Inicial (Apresentação)",
@@ -209,119 +214,227 @@ with st.sidebar:
     )
 
 # -----------------------------------------------------------------------------
-# CONTEÚDO DAS PÁGINAS
+# CONTEÚDO DAS PÁGINAS (COMPLETO)
 # -----------------------------------------------------------------------------
 
 if st.session_state.page == "Inicio":
     st.title("🧩 Bem-vindo ao SpectrumEcho")
     st.subheader("Plataforma Universal de Governança Sensorial e Tradução de Ecolalias")
     st.markdown("---")
-    st.markdown("### 🎯 Propósito do Aplicativo")
-    st.markdown("O **SpectrumEcho** apoia famílias e terapeutas na tradução de ecolalias e gestão sensorial no TEA.")
+    
+    col_inf1, col_inf2 = st.columns(2)
+    with col_inf1:
+        st.markdown("### 🎯 Propósito do Aplicativo")
+        st.markdown(
+            "O **SpectrumEcho** foi desenvolvido para auxiliar pais, familiares, educadores e profissionais de saúde "
+            "na compreensão profunda do Transtorno do Espectro Autista (TEA), oferecendo ferramentas práticas para "
+            "tradução de ecolalias, mapeamento de gatilhos sensoriais e relatórios analíticos estruturados."
+        )
+        st.markdown("### ✨ Funcionalidades Principais")
+        st.markdown("- **Gestão de Perfis:** Cadastro individualizado por usuário e paciente.")
+        st.markdown("- **Dicionário de Ecolalias:** Tradução comportamental instantânea baseada em inteligência artificial.")
+        st.markdown("- **Registro Sensorial:** Acompanhamento de crises e estratégias de acolhimento.")
+        st.markdown("- **Geração de Relatórios:** Exportação completa de dados analíticos em PDF.")
+    
+    with col_inf2:
+        st.info(
+            "💡 **Dica de Uso:**\n\n"
+            "1. Insira seu e-mail na barra lateral para carregar seus dados.\n"
+            "2. Cadastre os perfis dos dependentes ou pacientes na aba **Gestão de Perfis**.\n"
+            "3. Utilize a **Biblioteca de Ecolalias** para registrar falas repetitivas e obter contexto comportamental imediato."
+        )
 
 elif st.session_state.page == "Gestao":
     st.title("👤 Gestão de Perfis")
+    st.markdown("Gerencie os perfis atrelados à sua conta para personalização dos registros.")
+    st.markdown("---")
+    
     if not st.session_state.user_email:
-        st.warning("⚠️ Digite seu e-mail no menu lateral.")
+        st.warning("⚠️ Por favor, digite seu e-mail do Google na barra lateral para gerenciar seus perfis.")
     else:
         col_cad, col_list = st.columns(2)
         with col_cad:
+            st.markdown("### ➕ Adicionar Novo Perfil")
             with st.form("form_novo_perfil"):
-                nome = st.text_input("Nome Completo / Apelido:")
-                idade = st.number_input("Idade:", 1, 100, 8)
+                nome = st.text_input("Nome Completo / Apelido do Paciente:")
+                idade = st.number_input("Idade:", min_value=1, max_value=120, value=8)
                 tipo = st.selectbox("Tipo de Perfil:", ["Criança/Adolescente", "Adulto"])
                 suporte = st.selectbox("Nível de Suporte (TEA):", ["Nível 1 (Leve)", "Nível 2 (Moderado)", "Nível 3 (Severo)"])
-                if st.form_submit_button("➕ Salvar Perfil", type="primary"):
+                
+                submitted_perfil = st.form_submit_button("Salvar Perfil", type="primary")
+                if submitted_perfil:
                     if nome.strip():
-                        st.session_state.profiles_db.append({"email": current_user, "nome": nome.strip(), "idade": idade, "tipo": tipo, "suporte": suporte})
+                        novo_p = {
+                            "email": current_user,
+                            "nome": nome.strip(),
+                            "idade": idade,
+                            "tipo": tipo,
+                            "suporte": suporte
+                        }
+                        st.session_state.profiles_db.append(novo_p)
                         atualizar_e_salvar()
-                        st.success(f"Perfil de **{nome}** salvo!")
+                        st.success(f"Perfil de **{nome}** cadastrado com sucesso!")
                         st.rerun()
+                    else:
+                        st.error("O nome do perfil não pode estar vazio.")
+
         with col_list:
-            st.markdown("### Perfis Cadastrados")
+            st.markdown("### 📋 Perfis Cadastrados")
             perfis_visiveis = st.session_state.profiles_db if is_admin else [p for p in st.session_state.profiles_db if p.get("email", "").lower() == current_user]
-            for p in perfis_visiveis:
-                st.write(f"- **{p['nome']}** ({p['tipo']} - {p['suporte']})")
+            
+            if not perfis_visiveis:
+                st.info("Nenhum perfil cadastrado ainda.")
+            else:
+                for idx, p in enumerate(perfis_visiveis):
+                    with st.expander(f"👤 {p['nome']} ({p['tipo']})"):
+                        st.write(f"**Idade:** {p['idade']} anos")
+                        st.write(f"**Nível de Suporte:** {p['suporte']}")
+                        st.write(f"**Proprietário:** `{p.get('email', 'Geral')}`")
 
 elif st.session_state.page == "Ecolalias":
     st.title("📚 Dicionário de Tradução Ativa & Ecolalias")
+    st.markdown("Traduza o significado comportamental de falas repetitivas com o auxílio da inteligência artificial.")
+    st.markdown("---")
+    
     if not st.session_state.user_email:
-        st.warning("⚠️ Digite seu e-mail no menu lateral.")
+        st.warning("⚠️ Por favor, digite seu e-mail do Google na barra lateral para utilizar esta seção.")
     else:
         perfis_usuario = [p['nome'] for p in st.session_state.profiles_db if is_admin or p.get("email", "").lower() == current_user]
-        perfil_selecionado = st.selectbox("Selecione o Perfil:", perfis_usuario if perfis_usuario else ["Geral"])
+        perfil_selecionado = st.selectbox("Selecione o Perfil Associado:", perfis_usuario if perfis_usuario else ["Geral"])
 
         with st.form("form_ecolalia"):
-            midia = st.text_input("Origem:", placeholder="Ex: Mc Queen")
-            frase = st.text_area("Frase / Fala Repetida:")
-            if st.form_submit_button("✨ Analisar com IA", type="primary"):
+            midia = st.text_input("Origem / Contexto (Ex: Mc Queen, Bob Esponja, Desenho, Diário):", placeholder="Ex: Mc Queen")
+            frase = st.text_area("Frase / Fala Repetida (Ecolalia):", placeholder="Ex: Mamae cade o Mc Queen?")
+            
+            submitted_eco = st.form_submit_button("✨ Analisar com IA", type="primary")
+            if submitted_eco:
                 if frase.strip():
-                    with st.spinner("IA analisando..."):
-                        prompt = f"Especialista em TEA. Analise a ecolalia:\nOrigem: {midia}\nFrase: '{frase}'\nFormato:\n🔍 **Tradução Comportamental:** [Explicação]\n💡 **Ação Recomendada:** [Ação]"
-                        analise_texto, _ = chamar_ia_com_fallback(prompt, fallback_tipo="ecolalia")
-                        st.session_state.ecolalias_db.append({"email": current_user, "perfil": perfil_selecionado, "midia": midia, "frase": frase, "traducao": analise_texto})
+                    with st.spinner("🔄 A Inteligência Artificial está analisando o contexto comportamental..."):
+                        prompt = (
+                            "Você é um especialista clínico em Transtorno do Espectro Autista (TEA) e comunicação. "
+                            f"Analise a seguinte ecolalia:\n"
+                            f"- Origem/Mídia: {midia}\n"
+                            f"- Frase repetida: '{frase}'\n\n"
+                            "Forneça a resposta estritamente no seguinte formato visual limpo:\n"
+                            "🔍 **Tradução Comportamental:** [Explique de forma empática e técnica o que essa ecolalia pode significar em termos de regulação, memória ou busca de conexão]\n\n"
+                            "💡 **Ação Recomendada:** [Dê uma sugestão prática e acolhedora de como o cuidador deve responder ou agir no momento]"
+                        )
+                        analise_texto, is_contingency = chamar_ia_com_fallback(prompt, fallback_tipo="ecolalia")
+                        
+                        novo_registro = {
+                            "email": current_user,
+                            "perfil": perfil_selecionado,
+                            "midia": midia.strip() if midia else "Geral",
+                            "frase": frase.strip(),
+                            "traducao": analise_texto
+                        }
+                        st.session_state.ecolalias_db.append(novo_registro)
                         atualizar_e_salvar()
-                        st.success("Análise concluída!")
+                        st.success("Análise realizada e salva com sucesso!")
                         st.rerun()
+                else:
+                    st.error("Por favor, digite a frase repetida para análise.")
 
-        st.markdown("### Ecolalias Salvas")
+        st.markdown("---")
+        st.markdown("### 🗂️ Ecolalias Salvas")
         ecolalias_visiveis = st.session_state.ecolalias_db if is_admin else [e for e in st.session_state.ecolalias_db if e.get("email", "").lower() == current_user]
-        for idx, eco in enumerate(ecolalias_visiveis):
-            col_exp, col_act = st.columns([0.92, 0.08])
-            with col_exp:
-                with st.expander(f"🎬 {eco['midia']} — \"{eco['frase']}\""):
-                    st.markdown(eco['traducao'])
-            with col_act:
-                if st.button("🗑️", key=f"del_eco_{idx}"):
-                    st.session_state.ecolalias_db.remove(eco)
-                    atualizar_e_salvar()
-                    st.rerun()
+        
+        if not ecolalias_visiveis:
+            st.info("Nenhuma ecolalia registrada até o momento.")
+        else:
+            for idx, eco in enumerate(ecolalias_visiveis):
+                col_exp, col_act = st.columns([0.92, 0.08])
+                with col_exp:
+                    titulo_exp = f"🎬 {eco.get('midia', 'Geral')} — \"{eco.get('frase', '')}\""
+                    with st.expander(titulo_exp):
+                        st.markdown(eco.get('traducao', 'Sem tradução.'))
+                        st.caption(f"Perfil vinculado: {eco.get('perfil', 'Geral')} | Registrado por: {eco.get('email', '')}")
+                with col_act:
+                    if st.button("🗑️", key=f"del_eco_{idx}", help="Excluir este registro"):
+                        st.session_state.ecolalias_db.remove(eco)
+                        atualizar_e_salvar()
+                        st.rerun()
 
 elif st.session_state.page == "Sensorial":
     st.title("📝 Registro Sensorial & Crises")
+    st.markdown("Mapeie gatilhos, comportamentos e receba orientações rápidas para manejo de sobrecarga sensorial.")
+    st.markdown("---")
+    
     if not st.session_state.user_email:
-        st.warning("⚠️ Digite seu e-mail no menu lateral.")
+        st.warning("⚠️ Por favor, digite seu e-mail do Google na barra lateral para utilizar esta seção.")
     else:
-        gatilho_in = st.text_input("Gatilho:")
-        comportamento_in = st.text_area("Comportamento:")
-        intensidade_in = st.select_slider("Intensidade:", options=["Leve", "Moderado", "Severo"])
+        gatilho_in = st.text_input("Gatilho Identificado (Ex: Barulho alto, Luz intensa, Transição brusca):")
+        comportamento_in = st.text_area("Manifestação Comportamental (Ex: Agitação, silêncio seletivo, ecolalia persistente):")
+        intensidade_in = st.select_slider("Nível de Intensidade:", options=["Leve", "Moderado", "Severo"])
         
-        if st.button("🤖 Sugerir Estratégia de Ação com IA", type="secondary"):
-            prompt_sens = f"Especialista em TEA. Gatilho: {gatilho_in}, Comportamento: {comportamento_in}, Intensidade: {intensidade_in}. Dê uma orientação prática de acolhimento em até 3 frases."
-            sugestao_obtida, _ = chamar_ia_com_fallback(prompt_sens, fallback_tipo="sensorial")
-            st.session_state.sugestao_estrategia_temp = sugestao_obtida
-            st.success("Estratégia carregada!")
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            if st.button("🤖 Sugerir Estratégia de Ação com IA", type="secondary", use_container_width=True):
+                with st.spinner("Gerando estratégia..."):
+                    prompt_sens = (
+                        "Você é um terapeuta comportamental especialista em TEA. "
+                        f"Gatilho: {gatilho_in}. Comportamento: {comportamento_in}. Intensidade: {intensidade_in}. "
+                        "Forneça uma orientação direta, prática e humanizada de acolhimento imediato em até 3 frases."
+                    )
+                    sugestao_obtida, _ = chamar_ia_com_fallback(prompt_sens, fallback_tipo="sensorial")
+                    st.session_state.sugestao_estrategia_temp = sugestao_obtida
+                    st.success("Estratégia sugerida carregada abaixo!")
 
-        estrategia_in = st.text_area("Estratégia:", value=st.session_state.sugestao_estrategia_temp)
-        if st.button("💾 Salvar Registro", type="primary"):
-            st.session_state.sensorial_db.append({"email": current_user, "gatilho": gatilho_in, "comportamento": comportamento_in, "intensidade": intensidade_in, "estrategia": estrategia_in})
-            st.session_state.sugestao_estrategia_temp = ""
-            atualizar_e_salvar()
-            st.success("Salvo com sucesso!")
-            st.rerun()
+        estrategia_in = st.text_area("Estratégia de Manejo / Acolhimiento Aplicada:", value=st.session_state.sugestao_estrategia_temp, placeholder="Descreva ou ajuste a conduta adotada...")
+        
+        if st.button("💾 Salvar Registro Sensorial", type="primary"):
+            if gatilho_in.strip() or comportamento_in.strip():
+                novo_sens = {
+                    "email": current_user,
+                    "gatilho": gatilho_in,
+                    "comportamento": comportamento_in,
+                    "intensidade": intensidade_in,
+                    "estrategia": estrategia_in
+                }
+                st.session_state.sensorial_db.append(novo_sens)
+                st.session_state.sugestao_estrategia_temp = ""
+                atualizar_e_salvar()
+                st.success("Registro sensorial salvo com sucesso!")
+                st.rerun()
+            else:
+                st.error("Preencha pelo menos o gatilho ou o comportamento.")
 
-        st.markdown("### Histórico Sensorial")
+        st.markdown("---")
+        st.markdown("### ⚡ Histórico de Ocorrências Sensoriais")
         registros_visiveis = st.session_state.sensorial_db if is_admin else [s for s in st.session_state.sensorial_db if s.get("email", "").lower() == current_user]
-        for s in registros_visiveis:
-            with st.expander(f"⚡ {s['gatilho']} ({s['intensidade']})"):
-                st.write(f"**Comportamento:** {s['comportamento']}")
-                st.write(f"**Ação:** {s['estrategia']}")
+        
+        if not registros_visiveis:
+            st.info("Nenhum registro sensorial cadastrado.")
+        else:
+            for idx_s, s in enumerate(registros_visiveis):
+                with st.expander(f"⚡ Gatilho: {s.get('gatilho', 'Geral')} [{s.get('intensidade', 'Leve')}]"):
+                    st.write(f"**Comportamento:** {s.get('comportamento', '')}")
+                    st.write(f"**Estratégia aplicada:** {s.get('estrategia', '')}")
 
 elif st.session_state.page == "Dashboard":
-    st.title("📊 Dashboard & Relatórios")
+    st.title("📊 Dashboard & Análise Consolidada")
+    st.markdown("Visualize métricas gerais e exporte relatórios gerenciais completos.")
+    st.markdown("---")
+    
     if not st.session_state.user_email:
-        st.warning("⚠️ Digite seu e-mail no menu lateral.")
+        st.warning("⚠️ Por favor, digite seu e-mail do Google na barra lateral para acessar o dashboard.")
     else:
         user_ecos = [e for e in st.session_state.ecolalias_db if is_admin or e.get("email") == current_user]
         user_sens = [s for s in st.session_state.sensorial_db if is_admin or s.get("email") == current_user]
         user_profs = [p for p in st.session_state.profiles_db if is_admin or p.get("email") == current_user]
 
-        st.metric("Total de Ecolalias", len(user_ecos))
-        st.metric("Registros Sensoriais", len(user_sens))
+        col_m1, col_m2, col_m3 = st.columns(3)
+        col_m1.metric("Total de Ecolalias", len(user_ecos))
+        col_m2.metric("Registros Sensoriais", len(user_sens))
+        col_m3.metric("Perfis Vinculados", len(user_profs))
 
-        if st.button("📄 Gerar Relatório Completo em PDF", type="primary"):
+        st.markdown("---")
+        st.markdown("### 📄 Geração de Relatório Profissional em PDF")
+        st.markdown("Clique no botão abaixo para compilar todos os dados em um relatório estruturado pronto para impressão ou envio clínico.")
+        
+        if st.button("🚀 Gerar Relatório Completo em PDF", type="primary"):
             try:
-                primary_profile = user_profs[0] if user_profs else {"nome": "Usuário", "tipo": "Criança"}
+                primary_profile = user_profs[0] if user_profs else {"nome": "Paciente", "tipo": "Criança"}
                 sensory_logs = [{"stress_level_0_to_100": 50, "triggers": ["Ecolalia"], "behavioral_manifestation": {"echolalia_phrase": e.get("frase"), "media_source": e.get("midia")}} for e in user_ecos]
                 
                 report_payload = {
@@ -334,6 +447,11 @@ elif st.session_state.page == "Dashboard":
                 pdf_gen.generate()
                 
                 with open("relatorio_spectrumecho.pdf", "rb") as f:
-                    st.download_button("⬇️ Baixar Relatório em PDF", data=f, file_name="relatorio_spectrumecho.pdf", mime="application/pdf")
+                    st.download_button(
+                        label="⬇️ Baixar Relatório em PDF",
+                        data=f,
+                        file_name="relatorio_spectrumecho.pdf",
+                        mime="application/pdf"
+                    )
             except Exception as e:
-                st.error(f"Erro ao gerar PDF: {e}")
+                st.error(f"Erro ao gerar o PDF do relatório: {e}")
