@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import streamlit as st
 import pandas as pd
 from google import genai
@@ -91,7 +92,7 @@ def atualizar_e_salvar():
     salvar_banco(global_db)
 
 # -----------------------------------------------------------------------------
-# CONEXÃO COM O GEMINI & FUNÇÃO DE FALLBACK SEGURO
+# CONEXÃO COM O GEMINI & MOTOR DE FALLBACK INTELIGENTE (CORRIGIDO)
 # -----------------------------------------------------------------------------
 api_key = os.getenv("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
 
@@ -104,15 +105,19 @@ if api_key:
 
 def chamar_ia_com_fallback(prompt, fallback_tipo="ecolalia"):
     if client:
+        # Ordem otimizada de modelos para contornar gargalos de cota (Rate Limit 429)
         modelos = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash"]
         for mod in modelos:
             try:
                 response = client.models.generate_content(model=mod, contents=prompt)
-                if response and response.text:
+                if response and hasattr(response, "text") and response.text:
                     return response.text.strip(), False
-            except Exception:
+            except Exception as e:
+                # Se for erro de cota ou indisponibilidade, aguarda brevemente e tenta o próximo modelo
+                time.sleep(0.5)
                 continue
 
+    # Sistema de Contingência Ativo caso a API esgote cotas ou esteja indisponível
     if fallback_tipo == "ecolalia":
         return (
             "🔍 **Tradução Comportamental:** (Modo Contingência - Cota de IA Temporariamente Esgotada)\n"
