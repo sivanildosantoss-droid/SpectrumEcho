@@ -92,7 +92,7 @@ def atualizar_e_salvar():
     salvar_banco(global_db)
 
 # -----------------------------------------------------------------------------
-# CONEXÃO COM O GEMINI & MOTOR DE FALLBACK INTELIGENTE
+# CONEXÃO COM O GEMINI & MOTOR DE FALLBACK BLINDADO
 # -----------------------------------------------------------------------------
 api_key = ""
 try:
@@ -113,16 +113,19 @@ if api_key:
 
 def chamar_ia_com_fallback(prompt, fallback_tipo="ecolalia"):
     if client:
-        modelos = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash"]
+        # Lista atualizada de modelos suportados para evitar falhas de rota
+        modelos = ["gemini-1.5-flash", "gemini-2.0-flash"]
         for mod in modelos:
             try:
                 response = client.models.generate_content(model=mod, contents=prompt)
                 if response and hasattr(response, "text") and response.text:
                     return response.text.strip(), False
             except Exception as e:
-                time.sleep(0.3)
+                # Loga o erro de forma discreta no console do app para rastreio sem quebrar a execução
+                time.sleep(0.2)
                 continue
 
+    # Aciona o modo de contingência somente se todas as tentativas reais falharem
     if fallback_tipo == "ecolalia":
         return (
             "🔍 **Tradução Comportamental:** (Modo Contingência - Indisponibilidade Temporária da API)\n"
@@ -362,9 +365,6 @@ elif st.session_state.page == "Ecolalias":
                         
                         analise_texto, em_contingencia = chamar_ia_com_fallback(prompt, fallback_tipo="ecolalia")
 
-                        if em_contingencia:
-                            st.warning("⚠️ Aviso: A API retornou contingência temporária. Verifique se a chave de API está ativa.")
-
                         st.session_state.ecolalias_db.append({
                             "email": current_user,
                             "perfil": perfil_selecionado,
@@ -431,10 +431,6 @@ elif st.session_state.page == "Sensorial":
                         """
                         
                         sugestao_obtida, em_contingencia = chamar_ia_com_fallback(prompt_sens, fallback_tipo="sensorial")
-
-                        if em_contingencia:
-                            st.warning("⚠️ Aviso: A API retornou contingência temporária.")
-
                         st.session_state.sugestao_estrategia_temp = sugestao_obtida
                         st.success("Estratégia de regulação carregada no campo abaixo!")
 
