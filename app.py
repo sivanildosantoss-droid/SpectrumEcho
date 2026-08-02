@@ -92,9 +92,17 @@ def atualizar_e_salvar():
     salvar_banco(global_db)
 
 # -----------------------------------------------------------------------------
-# CONEXÃO COM O GEMINI & MOTOR DE FALLBACK INTELIGENTE (CORRIGIDO)
+# CONEXÃO COM O GEMINI & MOTOR DE FALLBACK INTELIGENTE (CORRIGIDO E ROBUSTO)
 # -----------------------------------------------------------------------------
-api_key = os.getenv("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY", "")
+api_key = ""
+try:
+    if "GEMINI_API_KEY" in st.secrets:
+        api_key = st.secrets["GEMINI_API_KEY"]
+except Exception:
+    pass
+
+if not api_key:
+    api_key = os.getenv("GEMINI_API_KEY", "")
 
 client = None
 if api_key:
@@ -105,7 +113,7 @@ if api_key:
 
 def chamar_ia_com_fallback(prompt, fallback_tipo="ecolalia"):
     if client:
-        # Ordem otimizada de modelos para contornar gargalos de cota (Rate Limit 429)
+        # Ordem de modelos otimizada
         modelos = ["gemini-1.5-flash", "gemini-1.5-flash-8b", "gemini-2.0-flash"]
         for mod in modelos:
             try:
@@ -113,14 +121,13 @@ def chamar_ia_com_fallback(prompt, fallback_tipo="ecolalia"):
                 if response and hasattr(response, "text") and response.text:
                     return response.text.strip(), False
             except Exception as e:
-                # Se for erro de cota ou indisponibilidade, aguarda brevemente e tenta o próximo modelo
-                time.sleep(0.5)
+                time.sleep(0.3)
                 continue
 
-    # Sistema de Contingência Ativo caso a API esgote cotas ou esteja indisponível
+    # Sistema de Contingência Ativo caso ocorra alguma falha na API
     if fallback_tipo == "ecolalia":
         return (
-            "🔍 **Tradução Comportamental:** (Modo Contingência - Cota de IA Temporariamente Esgotada)\n"
+            "🔍 **Tradução Comportamental:** (Modo Contingência - Indisponibilidade Temporária da API)\n"
             "Esta ecolalia reflete uma tentativa legítima de autorregulação emocional, busca por previsibilidade ou expressão de interesse em um estímulo familiar.\n\n"
             "💡 **Ação Recomendada:** Acolha a fala com tom tranquilo, valide o sentimento demonstrado e ofereça um ambiente calmo."
         ), True
@@ -359,7 +366,7 @@ elif st.session_state.page == "Ecolalias":
                         analise_texto, em_contingencia = chamar_ia_com_fallback(prompt, fallback_tipo="ecolalia")
 
                         if em_contingencia:
-                            st.warning("⚠️ Cota gratuita da API esgotada temporariamente (Erro 429). Gerada resposta de contingência especializada.")
+                            st.warning("⚠️ Aviso: A API retornou contingência temporária. Verifique se a chave de API está ativa.")
 
                         st.session_state.ecolalias_db.append({
                             "email": current_user,
@@ -429,7 +436,7 @@ elif st.session_state.page == "Sensorial":
                         sugestao_obtida, em_contingencia = chamar_ia_com_fallback(prompt_sens, fallback_tipo="sensorial")
 
                         if em_contingencia:
-                            st.warning("⚠️ Cota gratuita da API esgotada temporariamente (Erro 429). Carregada estratégia de contingência padrão.")
+                            st.warning("⚠️ Aviso: A API retornou contingência temporária.")
 
                         st.session_state.sugestao_estrategia_temp = sugestao_obtida
                         st.success("Estratégia de regulação carregada no campo abaixo!")
