@@ -2,8 +2,15 @@ import os
 import json
 import streamlit as st
 import pandas as pd
-from google import genai
 from report_generator import SpectrumEchoPDFGenerator
+
+# Tenta importar a nova biblioteca oficial do Google GenAI
+try:
+    from google import genai
+    USAR_NOVA_LIB = True
+except ImportError:
+    USAR_NOVA_LIB = False
+    import google.generativeai as genai_old
 
 # -----------------------------------------------------------------------------
 # FORÇAR A LEITURA DA CHAVE DOS SECRETS PARA O AMBIENTE
@@ -102,22 +109,24 @@ def atualizar_e_salvar():
 # -----------------------------------------------------------------------------
 # CONEXÃO COM O GEMINI & FUNÇÃO DE FALLBACK SEGURO
 # -----------------------------------------------------------------------------
+api_key_env = os.getenv("GEMINI_API_KEY", "")
 client = None
-try:
-    if os.getenv("GEMINI_API_KEY"):
-        client = genai.Client()
-except Exception:
-    client = None
+if api_key_env and USAR_NOVA_LIB:
+    try:
+        client = genai.Client(api_key=api_key_env)
+    except Exception:
+        client = None
 
 def chamar_ia_com_fallback(prompt, fallback_tipo="ecolalia"):
-    if client:
+    if client and USAR_NOVA_LIB:
         modelos = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b"]
         for mod in modelos:
             try:
                 response = client.models.generate_content(model=mod, contents=prompt)
                 if response and response.text:
                     return response.text.strip(), False
-            except Exception:
+            except Exception as ex:
+                # Opcional: st.error(f"Erro no modelo {mod}: {ex}")
                 continue
 
     if fallback_tipo == "ecolalia":
